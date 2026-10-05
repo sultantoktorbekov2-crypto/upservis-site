@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Кабинет владельца платформы</title>
+<style>
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;max-width:960px;margin:0 auto;padding:20px;color:#111}
+h1{font-size:20px;margin-bottom:16px}h1 small{display:block;font-size:12px;color:#777;font-weight:400}
+h2{font-size:16px;margin:24px 0 10px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;color:#777;font-weight:400;padding:6px 8px;border-bottom:1px solid #e2e2e2}
+td{padding:10px 8px;border-bottom:1px solid #e2e2e2;vertical-align:middle}
+.chip{display:inline-block;border-radius:6px;padding:2px 8px;font-size:12px}
+.ok{background:#16a34a1f;color:#16a34a}.warn{background:#d9770622;color:#b45309}.danger{background:#dc26261f;color:#dc2626}
+.btn{border:1px solid #e2e2e2;border-radius:8px;padding:6px 12px;font-size:13px;background:#fff;cursor:pointer}
+.btn:hover{background:#f5f5f5}
+.btn.p{background:#111;color:#fff;border-color:#111}
+.login{max-width:320px;margin:80px auto;text-align:center}
+input,select,textarea{width:100%;border:1px solid #e2e2e2;border-radius:10px;padding:10px 12px;font-size:15px;margin-bottom:10px;font-family:inherit}
+.note{font-size:13px;color:#777;margin:14px 0;line-height:1.6}
+.headrow{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.reqs{border:1px solid #f59e0b;background:#fffbeb;border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:14px}
+.ords{font-size:13px;color:#555}
+.mono{font-family:monospace;font-size:13px}
+.setrow{margin-bottom:4px}
+.setrow label{display:block;font-size:13px;color:#777;margin-bottom:5px}
+.stats{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:14px}
+.stats b{font-size:19px}
+</style></head><body>
+<div id="root"><div class="login"><h1>Кабинет владельца</h1>
+<input id="l" placeholder="Логин"><input id="p" type="password" placeholder="Пароль">
+<button class="btn p" style="width:100%;padding:11px" onclick="login()">Войти</button>
+<div class="note" id="err" style="color:#dc2626"></div></div></div>
+<script src="/config.js"></script>
+<script>
+let ownerRow=null,vq="",vqTimer=null,vf="all",vsort="new";
+const kgOff=6*3600*1000;
+// Время Бишкека (UTC+6) — НЕ зависит от часового пояса устройства просматривающего
+const kgDate=iso=>new Date(new Date(iso).getTime()+kgOff);
+const kgHM=iso=>iso?kgDate(iso).toISOString().slice(11,16):"—";
+const kgDay=iso=>kgDate(iso).toISOString().slice(0,10);
+const kgDayStartISO=()=>{const n=new Date(Date.now()+kgOff);return new Date(Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate(),-6)).toISOString();};
+
+function login(){
+  const lg=document.getElementById("l").value.trim(),pw=document.getElementById("p").value;
+  const err=document.getElementById("err");err.textContent="";
+  sbLogin(lg,pw)
+   .then(()=>sbMe())
+   .then(r=>{if(r&&r.role==="owner"){ownerRow=r;draw();}else{sbLogout();err.textContent="Неверный логин или пароль";alert("Неверный логин или пароль.");}})
+   .catch(e=>{err.textContent=e.message;alert("Ошибка входа:\n"+e.message);});
+}
+function logout(){sbLogout();location.href=location.pathname;}
+
+async function draw(){
+ try{
+  const vs=await sb("venues?select=*&order=created_at");
+  const reqs=await sb("renewal_requests?handled=eq.false&select=*,venues(name)&order=created_at.desc");
+  const pays=await sb("subscription_payments?select=*,venues(name)&order=created_at.desc&limit=100");
+  const leads=await sb("leads?select=*&order=created_at.desc&limit=50");
+  let finik={account:"",apikey:"",privkey:"",env:"beta"},subAmount=5000,broadcast={text:"",at:null},sms={login:"",password:"",sender:""};
+  try{
+    const fs=await sb("platform_settings?key=eq.finik&select=value");
+    if(fs.length)finik=Object.assign(finik,fs[0].value||{});
+    const ss=await sb("platform_settings?key=eq.subscription&select=value");
+    if(ss.length&&ss[0].value&&ss[0].value.amount)subAmount=ss[0].value.amount;
+    const bs=await sb("platform_settings?key=eq.broadcast&select=value");
+    if(bs.length)broadcast=Object.assign(broadcast,bs[0].value||{});
+    const sm=await sb("platform_settings?key=eq.sms&select=value");
+    if(sm.length)sms=Object.assign(sms,sm[0].value||{});
+  }catch(e){}
+
+  let rows="";
+  const q=vq.trim().toLowerCase();
+  let fvs=q?vs.filter(v=>((v.name||"")+" "+(v.contact_name||"")+" "+(v.contact_phone||"")+" "+(v.venue_no||"")+" "+(v.slug||"")).toLowerCase().includes(q)):vs.slice();
+  if(vf==="trial")fvs=fvs.filter(v=>v.plan==="trial");
+  else if(vf==="blocked")fvs=fvs.filter(v=>v.status==="blocked");
+  if(vsort==="new")fvs.sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||""));
+  else if(vsort==="old")fvs.sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||""));
+  else if(vsort==="no")fvs.sort((a,b)=>(a.venue_no||0)-(b.venue_no||0));
+  const fchip=(k,label,n)=>'<button class="btn'+(vf===k?' p':'')+'" onclick="vf=\''+k+'\';draw()">'+label+' ('+n+')</button>';
+  const filterRow='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'
+    +fchip("all","Все",vs.length)
+    +fchip("trial","Тест",vs.filter(v=>v.plan==="trial").length)
+    +fchip("subscription","Подписка",vs.filter(v=>v.plan==="subscription").length)
+    +fchip("blocked","Заблокированные",vs.filter(v=>v.status==="blocked").length)
+    +'<select onchange="vsort=this.value;draw()" style="padding:8px;border:1px solid #e2e2e2;border-radius:10px">'
+    +'<option value="new"'+(vsort==="new"?' selected':'')+'>Сначала новые</option>'
+    +'<option value="old"'+(vsort==="old"?' selected':'')+'>Сначала старые</option>'
+    +'<option value="no"'+(vsort==="no"?' selected':'')+'>По номеру ID</option></select></div>';
+  for(const v of fvs){
+    const st=await sb("staff?venue_id=eq."+v.id+"&role=eq.manager&select=login");
+    const creds=st.length?'<span class="mono">'+st[0].login+'</span>':'<span class="note">—</span>';
+    const os=await sb("orders?venue_id=eq."+v.id+"&select=total,payment_status&created_at=gte."+kgDayStartISO());
+    const rev=os.reduce((s,o)=>s+o.total,0);
+    const chip=v.status==="active"?'<span class="chip ok">Работает</span>':v.status==="blocked"?'<span class="chip danger">Заблокирован</span>':'<span class="chip warn">Льгота</span>';
+    const contact=(v.contact_name||v.contact_phone)?'<br><span style="font-size:12px;color:#777">📞 '+(v.contact_phone||'')+(v.contact_name?' · '+v.contact_name:'')+'</span>':'';
+    const daysLeft=v.paid_until?Math.round((Date.parse(v.paid_until)-Date.parse(kgDay(new Date().toISOString())))/86400000):null;
+    const timer=daysLeft===null?'':'<br><span style="font-size:12px;font-weight:600;color:'+(daysLeft<0?'#dc2626':daysLeft<3?'#dc2626':daysLeft<8?'#b45309':'#16a34a')+'">'+(daysLeft<0?'просрочено '+(-daysLeft)+' дн.':'осталось '+daysLeft+' дн.')+'</span>';
+    const planCell=v.plan==="trial"
+      ?'<span class="chip warn">Тест</span> бесплатно<br><span style="font-size:12px;color:#777">до '+v.paid_until+'</span>'+timer
+      :"Подписка "+v.fee+" сом/мес"+'<br><span style="font-size:12px;color:#777">оплачено до '+v.paid_until+'</span>'+timer;
+    rows+='<tr><td><b>'+(v.venue_no?'№'+v.venue_no+' · ':'')+v.name+'</b><br><span style="font-size:12px;color:#777">'+(v.slug?'/v/'+v.slug:(v.domain||''))+'</span>'+contact+'</td>'+
+    '<td>'+creds+'</td>'+
+    '<td>'+planCell+'</td>'+
+    '<td class="ords">'+os.length+' заказов<br>'+fmt(rev)+'</td><td>'+chip+'</td>'+
+    '<td style="white-space:nowrap">'+(v.status==="blocked"?'<button class="btn p" onclick="confirmPay(\''+v.id+'\',0)">Разблокировать (оплачено)</button>':'<button class="btn p" onclick="confirmPay(\''+v.id+'\',0)">Подтвердить оплату</button> <button class="btn" onclick="blockV(\''+v.id+'\')">Блокировать</button>')+(v.plan==="trial"?' <button class="btn" onclick="extendTrial(\''+v.id+'\')">+7 дней теста</button>':'')+(st.length?' <button class="btn" onclick="resetPw(\''+st[0].login+'\')">Сбросить пароль</button>':'')+'</td></tr>';
+  }
+
+  const reqHtml=reqs.length?'<div class="reqs"><b>Запросы на продление «оплатил переводом» ('+reqs.length+')</b><br>'+reqs.map(r=>'«'+r.venues.name+'» · '+kgHM(r.created_at)+' — <button class="btn p" onclick="confirmPay(\''+r.venue_id+'\','+r.id+')">Подтвердить оплату</button>').join("<br>")+'</div>':'';
+
+  // Отчёт по оплатам подписок
+  const curMonth=kgDay(new Date().toISOString()).slice(0,7);
+  const paidPays=pays.filter(p=>p.status==="paid");
+  const monthSum=paidPays.filter(p=>kgDay(p.paid_at||p.created_at).slice(0,7)===curMonth).reduce((s,p)=>s+p.amount,0);
+  const allSum=paidPays.reduce((s,p)=>s+p.amount,0);
+  const payRows=pays.length?pays.map(p=>'<tr><td>'+kgDay(p.created_at)+' '+kgHM(p.created_at)+'</td><td><b>'+(p.venues?p.venues.name:'—')+'</b></td><td>'+fmt(p.amount)+'</td><td>'+(p.method==="finik"?"Finik · онлайн":"Вручную")+'</td><td>'+(p.status==="paid"?'<span class="chip ok">Оплачено</span>':p.status==="pending"?'<span class="chip warn">Ждёт оплаты</span>':'<span class="chip danger">Ошибка</span>')+'</td></tr>').join(""):'<tr><td colspan="5" class="note">Оплат пока нет.</td></tr>';
+
+  // Заявки с лендинга
+  const newLeads=leads.filter(l=>!l.handled);
+  const leadRows=leads.length?leads.slice(0,20).map(l=>'<tr style="'+(l.handled?'opacity:.45':'')+'"><td>'+kgDay(l.created_at)+'</td><td><b>'+l.name+'</b><br><span style="font-size:12px;color:#777">'+l.cafe+'</span></td><td>'+l.phone+'</td><td>'+(l.handled?'обработана':'<button class="btn" onclick="leadDone(\''+l.id+'\')">Обработана</button>')+'</td></tr>').join(""):'<tr><td colspan="4" class="note">Заявок пока нет.</td></tr>';
+
+  document.getElementById("root").innerHTML='<div class="headrow"><h1>Кабинет владельца<small>управление всеми заведениями платформы</small></h1>'+
+  '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="changeOwnerPw()">Сменить пароль</button><button class="btn p" onclick="addVenue()">+ Добавить заведение</button><button class="btn" onclick="logout()">Выйти</button></div></div>'+
+  reqHtml+
+  '<div style="margin:6px 0 12px;display:flex;gap:8px;flex-wrap:wrap"><input id="vq" placeholder="Поиск заведения: название, имя владельца, телефон или № ID" style="flex:1;min-width:280px;padding:10px;border:1px solid #e2e2e2;border-radius:10px" value="'+vq.replace(/"/g,'&quot;')+'" oninput="vq=this.value;clearTimeout(vqTimer);vqTimer=setTimeout(draw,250)">'+(q?'<button class="btn" onclick="vq=\'\';draw()">Сбросить</button>':'')+'</div>'+
+  (q?'<div class="note" style="margin-bottom:8px">Найдено: '+fvs.length+' из '+vs.length+'</div>':'')+
+  filterRow+
+  '<table><tr><th>Заведение</th><th>Логин</th><th>Тариф</th><th>Сегодня</th><th>Статус</th><th>Действия</th></tr>'+rows+'</table>'+
+  '<div class="note">Пароли управляющих показываются один раз при создании заведения. Автоблокировка за неоплату работает по расписанию (функция billing).</div>'+
+
+  '<h2>Оплаты подписок (отчётность)</h2>'+
+  '<div class="stats"><div><b>'+fmt(monthSum)+'</b><br><span class="note">поступило в этом месяце</span></div>'+
+  '<div><b>'+fmt(allSum)+'</b><br><span class="note">за всё время</span></div>'+
+  '<div><b>'+paidPays.length+'</b><br><span class="note">оплаченных платежей</span></div></div>'+
+  '<table><tr><th>Дата</th><th>Заведение</th><th>Сумма</th><th>Способ</th><th>Статус</th></tr>'+payRows+'</table>'+
+
+  '<h2>Заявки с лендинга'+(newLeads.length?' · новых: '+newLeads.length:'')+'</h2>'+
+  '<table><tr><th>Дата</th><th>Контакт</th><th>Телефон</th><th></th></tr>'+leadRows+'</table>'+
+
+  '<h2>Сообщение всем заведениям (рассылка в кабинеты)</h2>'+
+  '<div class="note">Текст появится баннером в кабинете каждого заведения (и в новых, и в тестовых). Они увидят его при следующем входе или обновлении страницы и смогут скрыть кнопкой «Понятно».'+(broadcast.text?' <b>Сейчас висит сообщение от '+kgDay(broadcast.at)+'.</b>':' Сейчас сообщений нет.')+'</div>'+
+  '<div class="setrow"><label>Текст сообщения</label><textarea id="bc_text" rows="4" placeholder="Например: Просьба всем заведениям прислать в WhatsApp данные вашей кассы (модель) и банка — подключаем автопечать чеков и онлайн-оплату.">'+(broadcast.text||'').replace(/</g,'&lt;')+'</textarea></div>'+
+  '<button class="btn p" onclick="sendBroadcast()">Отправить всем</button> <button class="btn" onclick="clearBroadcast()">Убрать сообщение</button>'+
+
+  '<h2>Настройки Finik платформы (приём оплаты подписок)</h2>'+
+  '<div class="note">Сюда вводятся ключи ВАШЕГО магазина Finik — на них заведения оплачивают подписку онлайн. Регистрация: finik.kg → бизнес-аккаунт → ключи (тип WEB). Комиссия Finik 2% с платежа. Пока поля пустые — кнопка онлайн-оплаты у заведений не показывается.</div>'+
+  '<div class="setrow"><label>ID счёта Finik</label><input id="pf_acc" value="'+(finik.account||'').replace(/"/g,'&quot;')+'"></div>'+
+  '<div class="setrow"><label>API-ключ Finik (x-api-key)</label><input id="pf_key" value="'+(finik.apikey||'').replace(/"/g,'&quot;')+'"></div>'+
+  '<div class="setrow"><label>Приватный ключ (весь текст из finik_private.pem, включая BEGIN/END)</label><textarea id="pf_priv" rows="5" style="font-size:12px;font-family:monospace">'+(finik.privkey||'')+'</textarea></div>'+
+  '<div class="setrow"><label>Среда</label><select id="pf_env"><option value="beta"'+(finik.env!=="prod"?' selected':'')+'>Бета (тест, без реальных денег)</option><option value="prod"'+(finik.env==="prod"?' selected':'')+'>Рабочая (реальные деньги)</option></select></div>'+
+  '<div class="setrow"><label>Сумма подписки, сом/мес</label><input id="pf_amount" type="number" value="'+subAmount+'"></div>'+
+  '<button class="btn p" onclick="saveFinik()">Сохранить настройки</button>'+
+
+  '<h2>SMS-шлюз (восстановление пароля заведений по SMS-коду)</h2>'+
+  '<div class="note" style="margin-bottom:8px">Данные личного кабинета SMS-шлюза Nikita.kg (smspro.nikita.kg). Пока поля пустые — восстановление по SMS выключено, заведения сбрасывают пароль через тебя.</div>'+
+  '<div class="setrow"><label>Логин шлюза</label><input id="sm_login" value="'+(sms.login||'').replace(/"/g,'&quot;')+'"></div>'+
+  '<div class="setrow"><label>Пароль шлюза</label><input id="sm_pwd" value="'+(sms.password||'').replace(/"/g,'&quot;')+'"></div>'+
+  '<div class="setrow"><label>Имя отправителя (sender, согласуется с Nikita)</label><input id="sm_sender" value="'+(sms.sender||'').replace(/"/g,'&quot;')+'" placeholder="например: Upservis"></div>'+
+  '<button class="btn p" onclick="saveSms()">Сохранить SMS-настройки</button>';
+  const vqEl=document.getElementById("vq");
+  if(vqEl&&vq){vqEl.focus();vqEl.setSelectionRange(vqEl.value.length,vqEl.value.length);}
+ }catch(e){
+  document.getElementById("root").innerHTML='<div class="login"><h1>Ошибка кабинета</h1><div style="color:#dc2626;font-size:13px;margin:12px 0;line-break:anywhere">'+e.message+'</div><button class="btn p" style="width:100%" onclick="logout()">Выйти и войти заново</button></div>';
+ }
+}
+
+function confirmPay(id,reqId){
+  const a=prompt("Какую сумму оплатил заведение? (сом)\n5000 = 1 месяц, 10000 = 2 месяца, 15000 = 3 и т.д.","5000");
+  if(a===null)return;
+  const amount=+String(a).replace(/\s/g,"")||0;
+  if(amount<=0){alert("Впишите сумму числом");return;}
+  const months=Math.max(1,Math.round(amount/5000));
+  if(!confirm("Подтвердить оплату "+amount+" сом = "+months+" мес. подписки?"))return;
+  sbRpc("owner_confirm_payment",{p_venue_id:id,p_req_id:reqId||null,p_months:months})
+   .then(r=>{alert("Подписка продлена до "+(r&&r.paid_until?r.paid_until:"?")+" ("+(r&&r.months?r.months:months)+" мес.)");draw();})
+   .catch(e=>alert("Ошибка: "+e.message));
+}
+function blockV(id){
+  if(!confirm("ЗАБЛОКИРОВАТЬ сайт для гостей? Заказы перестанут приниматься."))return;
+  sbRpc("owner_set_status",{p_venue_id:id,p_status:"blocked"}).then(draw).catch(e=>alert("Ошибка: "+e.message));
+}
+function extendTrial(id){
+  if(!confirm("Продлить тестовый период на 7 дней?"))return;
+  sbRpc("owner_extend_trial",{p_venue_id:id,p_days:7})
+   .then(r=>{alert("Тест продлён до "+(r&&r.paid_until?r.paid_until:""));draw();})
+   .catch(e=>alert("Ошибка: "+e.message));
+}
+async function resetPw(login){
+  const nw=prompt("Новый пароль для «"+login+"» (минимум 6 символов):");
+  if(nw===null)return;
+  if(nw.length<6){alert("Минимум 6 символов");return;}
+  try{
+    const r=await fetch(SUPABASE_URL+"/functions/v1/admin-reset-password",{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,"Authorization":"Bearer "+SB_TOKEN},body:JSON.stringify({login:login,password:nw})});
+    const d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||("HTTP "+r.status));
+    alert("Пароль для «"+login+"» изменён.\n\nНовый пароль: "+nw+"\nПередайте его заведению — старый больше не работает.");
+  }catch(e){alert("Ошибка: "+e.message);}
+}
+function leadDone(id){
+  sb("leads?id=eq."+id,{method:"PATCH",body:JSON.stringify({handled:true})}).then(draw).catch(e=>alert("Ошибка: "+e.message));
+}
+function saveFinik(){
+  const g=id=>{const e=document.getElementById(id);return e?e.value.trim():"";};
+  const amount=+g("pf_amount")||5000;
+  const finik={account:g("pf_acc"),apikey:g("pf_key"),privkey:document.getElementById("pf_priv").value.trim(),env:g("pf_env")||"beta"};
+  sb("platform_settings?key=eq.finik",{method:"PATCH",body:JSON.stringify({value:finik,updated_at:new Date().toISOString()})})
+   .then(()=>sb("platform_settings?key=eq.subscription",{method:"PATCH",body:JSON.stringify({value:{amount:amount},updated_at:new Date().toISOString()})}))
+   .then(()=>{alert("Настройки сохранены."+(finik.apikey&&finik.privkey&&finik.account?" У заведений появилась кнопка онлайн-оплаты подписки.":" Пока ключи пустые — онлайн-оплата выключена."));draw();})
+   .catch(e=>alert("Ошибка: "+e.message));
+}
+function saveSms(){
+  const g=id=>{const e=document.getElementById(id);return e?e.value.trim():"";};
+  const sms={login:g("sm_login"),password:g("sm_pwd"),sender:g("sm_sender")};
+  sb("platform_settings?key=eq.sms",{method:"PATCH",body:JSON.stringify({value:sms,updated_at:new Date().toISOString()})})
+   .then(()=>{alert("SMS-настройки сохранены."+(sms.login&&sms.password&&sms.sender?" Восстановление пароля по SMS включено.":" Пока поля пустые — восстановление по SMS выключено."));draw();})
+   .catch(e=>alert("Ошибка: "+e.message));
+}
+function sendBroadcast(){
+  const t=document.getElementById("bc_text").value.trim();
+  if(!t){alert("Впишите текст сообщения");return;}
+  if(!confirm("Отправить это сообщение ВСЕМ заведениям? Они увидят его баннером в кабинете."))return;
+  sb("platform_settings?key=eq.broadcast",{method:"PATCH",body:JSON.stringify({value:{text:t,at:new Date().toISOString()},updated_at:new Date().toISOString()})})
+   .then(()=>{alert("Сообщение отправлено всем заведениям.");draw();})
+   .catch(e=>alert("Ошибка: "+e.message));
+}
+function clearBroadcast(){
+  if(!confirm("Убрать текущее сообщение у всех заведений?"))return;
+  sb("platform_settings?key=eq.broadcast",{method:"PATCH",body:JSON.stringify({value:{text:"",at:null},updated_at:new Date().toISOString()})})
+   .then(()=>{alert("Сообщение убрано.");draw();})
+   .catch(e=>alert("Ошибка: "+e.message));
+}
+function changeOwnerPw(){
+  const cur=prompt("Текущий пароль:");if(cur===null)return;
+  const nw=prompt("Новый пароль (минимум 6 символов):");if(nw===null)return;
+  if(nw.length<6){alert("Минимум 6 символов");return;}
+  sbLogin(ownerRow.login,cur)
+   .then(()=>sbChangePassword(nw))
+   .then(()=>alert("Пароль изменён. Запомните: "+nw))
+   .catch(e=>alert("Ошибка: "+(e.message.includes("Неверный")?"Текущий пароль неверный":e.message)));
+}
+async function addVenue(){
+  const name=prompt("Название заведения (видят гости):");
+  if(!name)return;
+  const slug=(prompt("Короткий код заведения для ссылки (английскими, без пробелов).\nНапример: daamduu, sary, toko","")||"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
+  if(!slug){alert("Код обязателен — без него меню не откроется по ссылке.");return;}
+  const login=(prompt("Логин управляющего (английскими, без пробелов):")||"").trim().toLowerCase();
+  if(!login)return;
+  const pass=prompt("Пароль управляющего (минимум 6 символов):");
+  if(!pass)return;
+  if(pass.length<6){alert("Пароль — минимум 6 символов");return;}
+  const copy=confirm("Скопировать в новое заведение демо-меню Daamduu как шаблон?\n«ОК» — скопировать, «Отмена» — пустое меню.");
+  try{
+    const r=await fetch(SUPABASE_URL+"/functions/v1/admin-create-venue",{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,"Authorization":"Bearer "+SB_TOKEN},body:JSON.stringify({name:name,slug:slug,login:login,password:pass,copy_menu:copy})});
+    const d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||("HTTP "+r.status));
+    alert("Заведение «"+name+"» создано!\n\nДоступы управляющему (запишите — пароль больше нигде не показывается):\nЛогин: "+login+"\nПароль: "+pass+"\n\nСсылки: меню /v/"+slug+" · кабинет /manager.html · кухня /kitchen.html");
+    draw();
+  }catch(e){alert("Ошибка: "+e.message);}
+}
+if(sessionStorage.getItem("sb_token")){
+  sbMe().then(r=>{if(r&&r.role==="owner"){ownerRow=r;draw();}else sbLogout();})
+   .catch(()=>sbLogout());
+}
+</script></body></html>

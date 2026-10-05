@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Создать меню — 14 дней бесплатно | Upservis</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#111;background:#f9fafb;min-height:100vh}
+.wrap{max-width:480px;margin:0 auto;padding:40px 20px}
+.logo{text-align:center;font-size:13px;letter-spacing:.2em;color:#b45309;font-weight:700;text-transform:uppercase;margin-bottom:10px}
+h1{font-size:24px;text-align:center;margin-bottom:8px}
+.sub{text-align:center;color:#6b7280;font-size:14px;margin-bottom:26px;line-height:1.6}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:24px}
+label{display:block;font-size:13px;color:#6b7280;margin-bottom:5px}
+input{width:100%;border:1px solid #d1d5db;border-radius:10px;padding:12px 14px;font-size:15px;margin-bottom:14px;font-family:inherit}
+input:focus{outline:none;border-color:#f59e0b}
+.btn{display:inline-block;border:none;border-radius:10px;padding:14px 28px;font-size:16px;font-weight:700;cursor:pointer;text-decoration:none;background:#fbbf24;color:#111;width:100%}
+.btn:disabled{opacity:.6}
+.note{font-size:13px;color:#9ca3af;text-align:center;margin-top:14px;line-height:1.6}
+.err{color:#dc2626;font-size:13px;text-align:center;margin-top:10px}
+.hp{position:absolute;left:-9999px;opacity:0;height:0}
+.steps{margin-top:22px;background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 18px;font-size:13px;color:#92400e;line-height:1.8}
+a{color:#b45309}
+</style></head><body>
+<div class="wrap">
+<div class="logo">Upservis · QR-меню</div>
+<h1>Создайте меню своего заведения</h1>
+<p class="sub">14 дней бесплатно, без карты и договоров.<br>Через 10 минут гости уже смогут заказывать по QR.</p>
+<div class="card">
+<form id="f">
+<label>Название заведения (его увидят гости)</label>
+<input id="nm" placeholder="Например: Кафе Асман" maxlength="60">
+<label>Ваше имя</label>
+<input id="cn" placeholder="Как к вам обращаться" maxlength="40">
+<label>Телефон (WhatsApp)</label>
+<input id="ph" placeholder="0555123456" maxlength="20">
+<label>Логин для входа в кабинет (латиница, без пробелов)</label>
+<input id="lg" placeholder="например: asman" maxlength="30">
+<label>Пароль (минимум 6 символов)</label>
+<input id="pw" type="password" placeholder="Придумайте пароль">
+<input id="pw2" type="password" placeholder="Повторите пароль" style="margin-bottom:18px">
+<input class="hp" id="company" tabindex="-1" autocomplete="off" placeholder="Компания">
+<button class="btn" id="go">Создать моё меню</button>
+<div class="err" id="err"></div>
+</form>
+</div>
+<div class="steps"><b>Что будет дальше:</b><br>
+1. Откроется ваш кабинет — внутри уже есть демо-меню, замените блюда на свои.<br>
+2. Во вкладке «Столы и QR» скачайте таблички и разложите на столах.<br>
+3. Раздел «Помощь» в кабинете — пошаговая инструкция по всему.</div>
+<p class="note">Тестовый период — 14 дней. Потом 5 000 сом/мес, отмена в любой момент.<br>Есть вопросы — <a id="wa" href="#">напишите нам в WhatsApp</a>.</p>
+</div>
+<script src="/config.js"></script>
+<script>
+document.getElementById("wa").textContent=OWNER_WHATSAPP;
+document.getElementById("wa").href=OWNER_WA_LINK;
+document.getElementById("f").onsubmit=async e=>{
+  e.preventDefault();
+  const g=id=>document.getElementById(id).value.trim();
+  const err=document.getElementById("err"),btn=document.getElementById("go");
+  err.textContent="";
+  if(!g("nm")||!g("ph")||!g("lg")||!g("pw")){err.textContent="Заполните все поля";return;}
+  if(g("pw")!==g("pw2")){err.textContent="Пароли не совпадают";return;}
+  btn.disabled=true;btn.textContent="Создаём…";
+  try{
+    const r=await fetch(SUPABASE_URL+"/functions/v1/signup",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY},
+      body:JSON.stringify({name:g("nm"),contact_name:g("cn"),phone:g("ph"),login:g("lg"),password:g("pw"),company:g("company")})
+    });
+    const d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||("HTTP "+r.status));
+    await sbLogin(g("lg"),g("pw"));
+    location.href="/manager.html?welcome=1";
+  }catch(e2){
+    err.textContent=e2.message;
+    btn.disabled=false;btn.textContent="Создать моё меню";
+  }
+};
+</script></body></html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<!-- This site is hosted on Netlify. Anyone can build and deploy a site
+     like this one for free: https://netlify.new/?utm_campaign=loops&utm_source=ai-legible&utm_medium=owned&utm_content=comment&utm_id=4df09abf-d4ab-422b-8ca0-4a9218b74b7f
+     Netlify hosting facts for this site: static/SSR served via Netlify Edge. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Кухня</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;max-width:700px;margin:0 auto;padding:16px;background:#111;color:#eee}
+h1{font-size:18px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.stats{background:#1a1a1a;border:1px solid #333;border-radius:10px;padding:10px 14px;font-size:13px;color:#999;margin-bottom:14px}
+.stats b{color:#eee}
+.sec{font-size:13px;color:#666;text-transform:uppercase;letter-spacing:.06em;margin:16px 0 8px}
+.ord{border:1px solid #333;border-radius:12px;padding:14px;margin-bottom:10px}
+.ord.new{border-color:#ef4444}.ord.cooking{border-color:#f59e0b}.ord.ready{border-color:#22c55e}
+.tbl{font-size:20px;font-weight:700}
+.times{font-size:11px;color:#666;margin-top:8px;line-height:1.7}
+.times b{color:#999;font-weight:400}
+.its{font-size:14px;color:#bbb;margin:8px 0;line-height:1.6}
+.tot{font-size:16px;font-weight:600}
+.btn{border:1px solid #444;border-radius:8px;padding:8px 14px;font-size:13px;background:#1e1e1e;color:#eee;cursor:pointer}
+.btn:hover{background:#2a2a2a}
+.btn.pay{border-color:#f59e0b;color:#f59e0b}
+.btn.danger{border-color:#ef4444;color:#ef4444}
+.chip{float:right;font-size:12px;border-radius:6px;padding:2px 8px}
+.new .chip{background:#ef444422;color:#ef4444}.cooking .chip{background:#f59e0b22;color:#f59e0b}.ready .chip{background:#22c55e22;color:#22c55e}
+.paywait{border-color:#3b82f6!important}
+.paywait .chip{background:#3b82f622;color:#3b82f6}
+.login{margin:80px auto;max-width:300px;text-align:center}
+input{width:100%;border:1px solid #444;border-radius:10px;padding:10px;font-size:15px;margin-bottom:10px;background:#1e1e1e;color:#eee}
+.empty{text-align:center;color:#666;padding:30px 0}
+.rowbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+</style></head><body>
+<div id="root" class="login"><h1 style="justify-content:center">Экран кухни</h1>
+<input id="l" placeholder="Логин кухни (логин заведения + _k)"><input id="p" type="password" placeholder="Пароль кухни">
+<button class="btn" id="loginBtn" style="width:100%" onclick="login()">Войти</button>
+<div id="err" style="color:#ef4444;font-size:13px;margin-top:10px"></div>
+<div style="margin-top:12px"><a href="#" style="font-size:13px;color:#60a5fa" onclick="toggleRec(event)">Забыли пароль кухни?</a></div>
+<div id="recBox" style="display:none;margin-top:12px;border:1px solid #444;border-radius:10px;padding:12px;text-align:left">
+<div style="font-size:12px;color:#888;margin-bottom:8px">Введите логин заведения (или кухни) и привязанный номер — придёт SMS с кодом.</div>
+<input id="rc_l" placeholder="Логин">
+<input id="rc_ph" placeholder="Привязанный номер, например 0555123456">
+<button class="btn" style="width:100%" id="recBtn" onclick="recoverSend()">Отправить код по SMS</button>
+<div id="recStep2" style="display:none;margin-top:10px">
+<input id="rc_code" placeholder="Код из SMS (5 цифр)">
+<input id="rc_nw" type="password" placeholder="Новый пароль кухни (мин. 6 символов)">
+<input id="rc_nw2" type="password" placeholder="Повторите новый пароль">
+<button class="btn" style="width:100%" id="recBtn2" onclick="recoverVerify()">Задать новый пароль</button>
+</div>
+<div id="recMsg" style="font-size:13px;margin-top:8px"></div>
+</div></div>
+<script src="/config.js"></script>
+<script>
+let vid=null,lastMax=0,lastOrders=[];
+const $=s=>document.getElementById(s);
+function login(){
+  const lg=$("l").value.trim(),pw=$("p").value,err=$("err"),btn=$("loginBtn");
+  err.textContent="";btn.textContent="Проверяем…";btn.disabled=true;
+  sbLogin(lg,pw)
+  .then(()=>sbMe())
+  .then(r=>{
+    if(r&&(r.role==="kitchen"||r.role==="manager")&&r.venue_id){
+      vid=r.venue_id;sessionStorage.setItem("kn",r.venues.name);sessionStorage.setItem("kp",r.venues.pay_provider||"");sessionStorage.setItem("kslug",r.venues.slug||"");
+      tick();setInterval(tick,5000);
+    }else{sbLogout();btn.textContent="Войти";btn.disabled=false;err.textContent="Неверный логин или пароль";alert("Неверный логин или пароль.\\n\\nЛогин кухни — логин заведения + _k (например, daamduu_k). Пароль кухни задаёт управляющий в кабинете: Настройки → «Пароль кухни».");}
+  })
+  .catch(e=>{btn.textContent="Войти";btn.disabled=false;err.textContent="Ошибка: "+e.message;alert("Ошибка входа:\\n"+e.message);});
+}
+function logout(){sbLogout();sessionStorage.removeItem("kn");sessionStorage.removeItem("kp");location.href=location.pathname;}
+function toggleRec(e){e.preventDefault();const b=$("recBox");b.style.display=b.style.display==="none"?"block":"none";}
+async function recoverSend(){
+  const lg=$("rc_l").value.trim(),ph=$("rc_ph").value.trim();
+  const msg=$("recMsg"),btn=$("recBtn");
+  if(!lg||!ph){msg.style.color="#ef4444";msg.textContent="Заполните логин и номер телефона";return;}
+  btn.disabled=true;btn.textContent="Отправляем…";msg.textContent="";
+  try{
+    const r=await fetch(SUPABASE_URL+"/functions/v1/recover-access",{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY},body:JSON.stringify({step:"send",login:lg,phone:ph,scope:"kitchen"})});
+    const d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||("HTTP "+r.status));
+    $("recStep2").style.display="block";
+    msg.style.color="#4ade80";msg.textContent="Код отправлен по SMS на номер "+d.sent_to+". Действует 10 минут.";
+  }catch(e){msg.style.color="#ef4444";msg.textContent=String(e.message||e);alert("Ошибка: "+e.message);}
+  btn.disabled=false;btn.textContent="Отправить код по SMS";
+}
+async function recoverVerify(){
+  const lg=$("rc_l").value.trim(),code=$("rc_code").value.trim();
+  const nw=$("rc_nw").value,nw2=$("rc_nw2").value;
+  const msg=$("recMsg"),btn=$("recBtn2");
+  if(nw.length<6){msg.style.color="#ef4444";msg.textContent="Новый пароль — минимум 6 символов";return;}
+  if(nw!==nw2){msg.style.color="#ef4444";msg.textContent="Новые пароли не совпадают";return;}
+  btn.disabled=true;btn.textContent="Проверяем…";
+  try{
+    const r=await fetch(SUPABASE_URL+"/functions/v1/recover-access",{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY},body:JSON.stringify({step:"verify",login:lg,scope:"kitchen",code,new_password:nw})});
+    const d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||("HTTP "+r.status));
+    msg.style.color="#4ade80";msg.textContent="Готово! Войдите с логином "+d.login+" и новым паролем.";
+    alert("Пароль кухни изменён!\n\nТеперь войдите: логин "+d.login+" и ваш новый пароль.");
+    $("recStep2").style.display="none";
+  }catch(e){msg.style.color="#ef4444";msg.textContent=String(e.message||e);alert("Ошибка: "+e.message);}
+  btn.disabled=false;btn.textContent="Задать новый пароль";
+}
+function beep(){
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const t0=ctx.currentTime;
+    [[1568,0.9,1.4],[2093,0.5,1.0],[2637,0.35,0.7],[3520,0.2,0.5]].forEach(([f,g,d])=>{
+      const o=ctx.createOscillator(),gn=ctx.createGain();
+      o.connect(gn);gn.connect(ctx.destination);o.frequency.value=f;
+      gn.gain.setValueAtTime(0.0001,t0);
+      gn.gain.exponentialRampToValueAtTime(0.28*g,t0+0.012);
+      gn.gain.exponentialRampToValueAtTime(0.0001,t0+d);
+      o.start(t0);o.stop(t0+d+0.1);
+    });
+  }catch(e){}
+}
+
+// время Кыргызстана (UTC+6, без перехода на летнее)
+const kgOff=6*3600*1000;
+// Время Бишкека (UTC+6) — НЕ зависит от часового пояса устройства просматривающего
+const kgDate=iso=>new Date(new Date(iso).getTime()+kgOff);
+const kgHM=iso=>iso?kgDate(iso).toISOString().slice(11,16):"—";
+const kgDay=iso=>kgDate(iso).toISOString().slice(0,10);
+const kgDayStartISO=()=>{const n=new Date(Date.now()+kgOff);return new Date(Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate(),-6)).toISOString();};
+const uniqNo=tos=>{const used=new Set(tos.map(o=>o.order_no));let no=0;for(let t=0;t<60;t++){no=1000+Math.floor(Math.random()*9000);if(!used.has(no))break;}return no;};
+
+const hm=kgHM;
+async function tick(){
+ try{
+  const os=await sb("orders?venue_id=eq."+vid+"&status=in.(new,cooking,ready)&order=created_at&select=*");
+  lastOrders=os;
+  const mx=os.reduce((m,o)=>Math.max(m,o.id),0);
+  if(lastMax&&mx>lastMax)beep();
+  if(mx>lastMax)lastMax=mx;
+  const all=await sb("orders?venue_id=eq."+vid+"&created_at=gte."+kgDayStartISO()+"&select=total,status,accepted_at,ready_at");
+  const rev=all.reduce((s,o)=>s+o.total,0);
+  const cooked=all.filter(o=>o.accepted_at&&o.ready_at);
+  const avg=cooked.length?Math.round(cooked.reduce((s,o)=>s+(new Date(o.ready_at)-new Date(o.accepted_at)),0)/cooked.length/60000):null;
+  const NAME=sessionStorage.getItem("kn")||"";
+  const PROVIDER=sessionStorage.getItem("kp")||"";
+  const unpaid=os.filter(o=>o.payment_status==="pending"&&(o.pay_method==="cash"||!o.pay_method||(o.pay_method==="online"&&PROVIDER!=="finik")));
+  const paid=os.filter(o=>o.payment_status!=="pending");
+  const card=o=>{
+    const waitPay=o.payment_status==="pending";
+    return '<div class="ord '+o.status+(waitPay?' paywait':'')+'"><span class="chip">'+
+    (waitPay?(o.pay_proof?"🧾 ПРОВЕРЬТЕ ЧЕК ПЕРЕВОДА":(o.pay_method==="online"?"Онлайн · ждёт оплаты":"Ждёт оплаты на кассе")):o.status==="new"?"Новый":o.status==="cooking"?"Готовится":"Готов")+'</span>'+
+    '<div class="tbl">№'+(o.order_no||o.id)+' · '+(o.table_name||(o.table_no!=null?'Стол '+o.table_no:'Без стола'))+'</div>'+
+    (o.pay_proof?'<div style="margin:6px 0"><a href="'+SUPABASE_URL+'/storage/v1/object/public/proofs/'+o.pay_proof+'" target="_blank" style="color:#fbbf24;font-weight:700">🧾 Открыть чек перевода — сверить сумму и номер заказа</a></div>':'')+
+    '<div class="its">'+o.items.map(i=>i.qty+"× "+i.name).join("<br>")+'</div>'+
+    '<div class="times">получен <b>'+hm(o.created_at)+'</b>'+(o.accepted_at?' · принят <b>'+hm(o.accepted_at)+'</b>':'')+(o.ready_at?' · готов <b>'+hm(o.ready_at)+'</b>':'')+(o.done_at?' · выдан <b>'+hm(o.done_at)+'</b>':'')+'</div>'+
+    '<div class="rowbtns"><span class="tot" style="flex:1;align-self:center">'+fmt(o.total)+'</span>'+
+    (waitPay?'<button class="btn pay" onclick="paid('+o.id+')">Оплачено</button> ':
+      (o.status==="new"?'<button class="btn" onclick="nx('+o.id+',\'cooking\')">Принять в работу</button> ':
+       o.status==="cooking"?'<button class="btn" onclick="nx('+o.id+',\'ready\')">Готов</button> ':
+       '<button class="btn" onclick="nx('+o.id+',\'done\')">Выдан</button> '))+
+    '<button class="btn" onclick="printOrder('+o.id+')">Печать</button> <button class="btn" onclick="receipt('+o.id+','+(o.receipt_printed?"1":"0")+')">'+(o.receipt_printed?"Чек ✓":"Чек")+'</button> <button class="btn danger" onclick="cancelOrd('+o.id+')">Отменить</button></div></div>';
+  };
+  $("root").className="";
+  $("root").innerHTML='<h1><span>'+NAME+' · кухня</span><span style="display:flex;gap:12px;align-items:center"><button class="btn" onclick="logout()">Выйти</button></span></h1>'+
+  (sessionStorage.getItem("kslug")==="demo"?'<div style="background:#3b2f0b;border:1px solid #f59e0b;color:#fbbf24;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:12px"><b>Демо-режим</b> — витринное заведение. Нажимайте всё подряд: каждое утро заказы обновляются автоматически.</div>':'')+
+  '<div class="stats">Сегодня: <b>'+all.length+'</b> заказов · <b>'+fmt(rev)+'</b>'+(avg!==null?' · среднее приготовление <b>'+avg+' мин</b>':'')+'</div>'+
+  (unpaid.length?'<div class="sec">Ждут оплаты на кассе · '+unpaid.length+'</div>'+unpaid.map(card).join(""):'')+
+  (paid.length?'<div class="sec">В работе · '+paid.length+'</div>'+paid.map(card).join(""):'')+
+  (!os.length?'<div class="empty">Новых заказов нет</div>':'');
+ }catch(e){
+  $("root").innerHTML='<div class="login"><h1 style="justify-content:center">Ошибка загрузки</h1><div style="color:#ef4444;font-size:13px;margin:12px 0;line-break:anywhere">'+e.message+'</div><div class="note" style="color:#666;font-size:13px;margin-bottom:14px">Скорее всего не выполнена миграция базы: зайдите в Supabase → SQL Editor и выполните migration5.sql и migration6.sql, затем обновите страницу.</div><button class="btn" style="width:100%" onclick="logout()">Выйти</button></div>';
+ }
+}
+function nx(id,st){
+  const extra={};
+  if(st==="cooking")extra.accepted_at=new Date().toISOString();
+  if(st==="ready")extra.ready_at=new Date().toISOString();
+  if(st==="done")extra.done_at=new Date().toISOString();
+  if(st==="done"&&!confirm("Отметить заказ как выданный?"))return;
+  sb("orders?id=eq."+id,{method:"PATCH",body:JSON.stringify(Object.assign({status:st},extra))}).then(tick).catch(e=>alert("Ошибка: "+e.message));
+}
+function paid(id){
+  if(!confirm("Подтвердить оплату по этому заказу?"))return;
+  sb("orders?id=eq."+id,{method:"PATCH",body:JSON.stringify({payment_status:"paid"})}).then(()=>{printReceipt(id);tick();}).catch(e=>alert("Ошибка: "+e.message));
+}
+function receipt(id,printed){
+  if(printed==="1"){if(!confirm("Чек уже отмечен как напечатанный. Снять отметку?"))return;
+    sb("orders?id=eq."+id,{method:"PATCH",body:JSON.stringify({receipt_printed:false})}).then(tick).catch(e=>alert("Ошибка: "+e.message));return;}
+  if(!confirm("Подтвердить печать фискального чека по заказу?"))return;
+  sb("orders?id=eq."+id,{method:"PATCH",body:JSON.stringify({receipt_printed:true})}).then(tick).catch(e=>alert("Ошибка: "+e.message));
+}
+function printReceipt(id){
+  fetch(SUPABASE_URL+"/functions/v1/kkm-print",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({order_id:id})})
+   .then(r=>r.json()).then(d=>{if(d&&d.ok===false&&!d.skipped)console.log("Касса:",d.error||d.status);}).catch(()=>{});
+}
+function cancelOrd(id){
+  if(!confirm("Отменить заказ? Гость увидит отмену на своём экране."))return;
+  if(!confirm("Точно отменить? (например, блюдо закончилось)"))return;
+  sb("orders?id=eq."+id,{method:"PATCH",body:JSON.stringify({status:"cancelled"})}).then(tick).catch(e=>alert("Ошибка: "+e.message));
+}
+// Печать бегунка заказа на чековом принтере (80 мм, через окно печати браузера)
+function printOrder(id){
+  const o=lastOrders.find(x=>x.id===id);
+  if(!o){alert("Заказ не найден — обновите страницу");return;}
+  const NAME=sessionStorage.getItem("kn")||"";
+  const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const line="-".repeat(36);
+  const rows=o.items.map(i=>{
+    const sum=i.price*i.qty;
+    return '<tr><td>'+esc(i.qty+"× "+i.name)+'</td><td style="text-align:right;white-space:nowrap">'+sum+'</td></tr>';
+  }).join("");
+  const w=window.open("","_blank","width=420,height=640");
+  if(!w){alert("Браузер заблокировал окно печати — разрешите всплывающие окна для этого сайта.");return;}
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Заказ №'+(o.order_no||o.id)+'</title><style>'+
+   '@page{size:80mm auto;margin:2mm}'+
+   'body{font-family:monospace;font-size:13px;width:72mm;margin:0;color:#000}'+
+   'table{width:100%;border-collapse:collapse}td{padding:2px 0;vertical-align:top}'+
+   '.c{text-align:center}.b{font-weight:bold}.big{font-size:22px;font-weight:bold}</style></head><body>'+
+   '<div class="c b" style="font-size:15px">'+esc(NAME)+'</div>'+
+   '<div class="c">Заказ</div>'+
+   '<div class="c big">№'+(o.order_no||o.id)+'</div>'+
+   '<div class="c">'+(o.table_name?esc("Стол "+o.table_name):"")+'</div>'+
+   '<div class="c">'+kgDay(o.created_at).split("-").reverse().join(".")+' '+kgHM(o.created_at)+'</div>'+
+   '<div>'+line+'</div>'+
+   '<table>'+rows+'</table>'+
+   '<div>'+line+'</div>'+
+   '<table><tr><td class="b" style="font-size:15px">ИТОГО</td><td class="b" style="text-align:right;font-size:15px">'+o.total+' сом</td></tr></table>'+
+   '<div>'+line+'</div>'+
+   '<div>Оплата: '+(o.pay_method==="online"?"онлайн":"на кассе")+' · '+(o.payment_status==="paid"?"ОПЛАЧЕНО":"ждёт оплаты")+'</div>'+
+   '<div class="c" style="margin-top:8px">Спасибо за заказ!</div>'+
+   '<script>window.onload=function(){window.print();}<\/script>'+
+   '</body></html>');
+  w.document.close();
+}
+if(sessionStorage.getItem("sb_token")){
+  sbMe().then(r=>{
+    if(r&&(r.role==="kitchen"||r.role==="manager")&&r.venue_id){
+      vid=r.venue_id;sessionStorage.setItem("kn",r.venues.name);sessionStorage.setItem("kp",r.venues.pay_provider||"");sessionStorage.setItem("kslug",r.venues.slug||"");
+      tick();setInterval(tick,5000);
+    }else sbLogout();
+  }).catch(()=>sbLogout());
+}
+</script></body></html>

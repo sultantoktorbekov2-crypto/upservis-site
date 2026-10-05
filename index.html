@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<!-- This site is hosted on Netlify. Anyone can build and deploy a site
+     like this one for free: https://netlify.new/?utm_campaign=loops&utm_source=ai-legible&utm_medium=owned&utm_content=comment&utm_id=4df09abf-d4ab-422b-8ca0-4a9218b74b7f
+     Netlify hosting facts for this site: static/SSR served via Netlify Edge. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Меню</title>
+<style>
+:root{--line:#e2e2e2;--txt:#111;--sub:#777;--bg:#fff}
+@media(prefers-color-scheme:dark){:root{--line:#3a3a3a;--txt:#eee;--sub:#999;--bg:#1a1a1a}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--txt);max-width:640px;margin:0 auto;padding:16px 16px 90px}
+h1{font-size:22px}h1 small{display:block;font-size:12px;color:var(--sub);font-weight:400}
+.head{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px;align-items:flex-start}
+.badge{border:1px solid var(--line);border-radius:10px;padding:6px 12px;font-size:14px;color:var(--sub)}
+.lastorder{background:#16a34a14;border:1px solid #16a34a55;border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:12px}
+.lastorder b{color:#16a34a}
+.lastorder .no{font-size:22px;font-weight:800;color:#16a34a}
+.lastorder span{display:block;color:var(--sub);font-size:12px;margin-top:4px}
+.lastorder button{margin-top:8px;border:1px solid var(--line);background:transparent;color:var(--txt);border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer}
+#q{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:15px;background:transparent;color:var(--txt);margin-bottom:12px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tab{border:1px solid var(--line);border-radius:999px;padding:6px 13px;font-size:14px;background:none;color:var(--sub);cursor:pointer}
+.tab.on{background:var(--txt);color:var(--bg);border-color:var(--txt)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:420px){.grid{grid-template-columns:1fr}}
+.grid.list{display:block}
+.card{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:5px}
+.card img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px}
+.lcard{display:flex;gap:12px;border:1px solid var(--line);border-radius:14px;padding:10px;align-items:center;margin-bottom:10px}
+.lcard img{width:92px;height:92px;border-radius:10px;object-fit:cover;flex:none}
+.lcard .noph{width:92px;height:92px;border-radius:10px;flex:none;background:var(--line);display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--sub)}
+.lcard .mid{flex:1;min-width:0}
+.lcard .nm{font-size:15px;font-weight:600;margin-bottom:3px}
+.lcard .ds{font-size:12px;color:var(--sub);line-height:1.45}
+.lcard .rgt{flex:none;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+.lcard .pr{font-size:16px;font-weight:700;white-space:nowrap}
+.nm{font-size:15px;font-weight:600}.ds{font-size:12px;color:var(--sub);flex:1}
+.row{display:flex;justify-content:space-between;align-items:center;margin-top:5px;gap:8px}
+.pr{font-size:16px;font-weight:600;white-space:nowrap}
+.add{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:none;color:var(--txt);font-size:20px;cursor:pointer}
+.step{display:flex;align-items:center;gap:6px}
+.step button{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:none;color:var(--txt);font-size:18px;cursor:pointer}
+.qn{min-width:22px;text-align:center;font-weight:600}
+.cart{border-top:1px solid var(--line);margin-top:20px;padding-top:14px}
+.ct{font-size:17px;font-weight:600;margin-bottom:8px}
+.ci{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:14px}
+.ci+.ci{border-top:1px solid var(--line)}
+.cn{flex:1}.cp{white-space:nowrap;color:var(--sub)}
+.del{border:none;background:none;color:var(--sub);cursor:pointer;font-size:15px}
+.foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;flex-wrap:wrap}
+.tt{font-size:20px;font-weight:700}.tt small{display:block;font-size:12px;color:var(--sub);font-weight:400;text-align:right}
+.pay{border:none;border-radius:10px;padding:13px 22px;font-size:15px;font-weight:600;cursor:pointer;color:#fff}
+.pay.cash{background:var(--txt)}
+.pay.online{background:#2563eb}
+.empty{text-align:center;color:var(--sub);padding:26px 0;font-size:14px}
+.done{text-align:center;padding:30px 0}
+.done .big{font-size:52px;font-weight:800;color:#16a34a;display:block;line-height:1}
+.done .big.bad{color:#dc2626}
+.done b{font-size:18px;display:block;margin:12px 0 6px}
+.done .stt{font-weight:700;display:block;margin-bottom:4px}
+.done span{color:var(--sub);font-size:14px;display:block;margin-bottom:4px}
+.done .again{margin-top:16px;border:1px solid var(--line);background:transparent;color:var(--txt);border-radius:10px;padding:11px 22px;font-size:15px;cursor:pointer}
+.done .again.cxl{border-color:#dc2626;color:#dc2626}
+.off{text-align:center;padding:40px 0;color:var(--sub)}
+.off b{display:block;color:var(--txt);font-size:18px;margin-bottom:8px}
+#floatBtn{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:50;background:var(--txt);color:var(--bg);border:none;border-radius:999px;padding:14px 26px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);display:none;font-family:inherit}
+</style></head><body>
+<div class="head"><h1 id="vname">Меню</h1><div class="badge" id="badge"></div></div>
+<div id="app"><div class="empty">Загружаем меню…</div></div>
+<div id="promo" style="display:none;text-align:center;margin-top:28px;padding:14px;border-top:1px solid var(--line);font-size:13px;color:var(--sub)">Меню работает на <b>Upservis</b> · Хотите такое же для своего кафе?<br><a id="promoLink" href="/landing.html" style="color:var(--txt);font-weight:600">Оставьте заявку</a> или напишите: <a id="promoWa" href="#" style="color:var(--txt);font-weight:600"></a><br><a href="/privacy.html" style="color:var(--sub);font-size:12px">Политика конфиденциальности</a></div>
+<button id="floatBtn" onclick="document.getElementById('cartAnchor').scrollIntoView({behavior:'smooth'})">Сделать заказ</button>
+<script src="/config.js"></script>
+<script>
+const slugKey=decodeURIComponent((location.pathname.match(/\/v\/([^\/?#]+)/)||[])[1]||'');
+const tableNo=decodeURIComponent((location.pathname.match(/\/t\/([^\/?#]+)/)||[])[1]||'');
+const vkey=slugKey||new URLSearchParams(location.search).get("v");
+// время Кыргызстана (UTC+6, без перехода на летнее)
+const kgOff=6*3600*1000;
+// Время Бишкека (UTC+6) — НЕ зависит от часового пояса устройства просматривающего
+const kgDate=iso=>new Date(new Date(iso).getTime()+kgOff);
+const kgHM=iso=>iso?kgDate(iso).toISOString().slice(11,16):"—";
+const kgDay=iso=>kgDate(iso).toISOString().slice(0,10);
+const kgDayStartISO=()=>{const n=new Date(Date.now()+kgOff);return new Date(Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate(),-6)).toISOString();};
+const uniqNo=tos=>{const used=new Set(tos.map(o=>o.order_no));let no=0;for(let t=0;t<60;t++){no=1000+Math.floor(Math.random()*9000);if(!used.has(no))break;}return no;};
+
+let venue=null,cats=[],cart={},done=null,cur="Всё",itemsById={},pollTimer=null;
+let last=null;try{last=JSON.parse(sessionStorage.getItem("lastOrder"));}catch(e){}
+let myOrders=[];try{myOrders=JSON.parse(sessionStorage.getItem("myOrders")||"[]");}catch(e){myOrders=[];}
+function saveOrders(){try{sessionStorage.setItem("myOrders",JSON.stringify(myOrders));}catch(e){}}
+function ordLabel(mo){return mo.st==="ready"?"ГОТОВ ✓":mo.st==="cooking"?"готовится":mo.st==="done"?"выдан":(mo.method==="online"?"ждёт оплаты":"ждёт оплаты на кассе");}
+async function load(){
+  venue=await sbRpc("get_venue_public",{p_key:vkey||location.hostname});
+  if(!venue&&location.pathname!=="/landing.html"){location.replace("/landing.html");return;}
+  if(!venue){document.getElementById("app").innerHTML='<div class="off"><b>Заведение не найдено</b>Проверьте ссылку или QR-код.</div>';return;}
+  venue.style="cards";
+  try{venue.style=(await sbRpc("get_menu_style",{p_key:vkey||location.hostname}))||"cards";}catch(e){}
+  document.getElementById("vname").innerHTML=venue.name+"<small>"+(venue.tagline||"электронное меню")+"</small>";
+  document.getElementById("badge").textContent=(tableNo?("Стол "+tableNo):"Без стола");
+  document.title=venue.name+" — меню";
+  const pw=document.getElementById("promoWa");pw.textContent=OWNER_WHATSAPP;pw.href=OWNER_WA_LINK;
+  document.getElementById("promo").style.display="block";
+  if(venue.status==="blocked"){document.getElementById("app").innerHTML='<div class="off"><b>Меню временно недоступно</b>Приносим извинения. Оплата сервиса заведения просрочена.</div>';return;}
+  cats=(await sb("categories?venue_id=eq."+venue.id+"&order=position")).map(c=>({...c,items:[]}));
+  for(const c of cats)c.items=await sb("items?category_id=eq."+c.id+"&order=position&active=eq.true");
+  render();
+}
+async function pollStatus(){
+  let changed=false;
+  if(done&&done.id){
+    try{
+      const o=await sbRpc("get_order_status",{p_id:done.id});
+      if(o&&o.status&&o.status!==(done.st||"new")){done.st=o.status;changed=true;}
+    }catch(e){}
+    const mo=myOrders.find(m=>m.id===done.id);
+    if(mo&&mo.st!==done.st){mo.st=done.st;if(done.st==="done")mo.doneTs=Date.now();saveOrders();}
+  }
+  const now=Date.now();
+  for(const mo of myOrders){
+    if(done&&mo.id===done.id)continue;
+    if(mo.st==="done"&&mo.doneTs)continue;
+    try{
+      const o=await sbRpc("get_order_status",{p_id:mo.id});
+      if(o&&o.status&&o.status!==mo.st){mo.st=o.status;if(o.status==="done")mo.doneTs=now;changed=true;}
+    }catch(e){}
+  }
+  const before=myOrders.length;
+  myOrders=myOrders.filter(mo=>mo.st!=="cancelled"&&!(mo.st==="done"&&mo.doneTs&&now-mo.doneTs>3600000));
+  if(myOrders.length!==before){saveOrders();changed=true;}
+  if(changed)render();
+}
+function btnGuard(btn,busy){
+  btn.disabled=busy;
+  btn.textContent=busy?"Отправляем…":"Оплатить онлайн";
+}
+function render(){
+  if(done||myOrders.length){if(!pollTimer)pollTimer=setInterval(pollStatus,8000);}
+  else if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
+  const app=document.getElementById("app"),fb=document.getElementById("floatBtn");
+  const entries=Object.entries(cart),total=entries.reduce((s,[id,q])=>s+itemsById[id].price*q,0),count=entries.reduce((s,[,q])=>s+q,0);
+  if(done){
+    fb.style.display="none";
+    const st=done.st||"new";
+    const stTxt={new:(done.method==="online"?"Ожидает оплаты…":"Передан на кухню · ждёт оплаты на кассе"),cooking:"Готовится…",ready:"ГОТОВ — забирайте по номеру №"+done.no,done:"Выдан",cancelled:""}[st]||"";
+    app.innerHTML='<div class="cart"><div class="done">'+
+    (st==="cancelled"
+      ?'<span class="big bad">✕</span><b>Заказ №'+done.no+' отменён</b><span>Извините! Подойдите к кассе — подберём альтернативу.</span>'
+      :'<span class="big">✓</span><b>Заказ №'+done.no+' принят</b><span class="stt" style="color:'+(st==="ready"?"#16a34a":st==="cooking"?"#b45309":"inherit")+'">'+stTxt+'</span><span>Покажите этот номер на кассе при получении.</span>'+
+    ((st==="new"&&done.method==="online"&&venue.pay_provider==="transfer")?
+      '<div style="border:1px solid #2563eb55;background:#2563eb0d;border-radius:12px;padding:14px;margin-top:14px;text-align:left;font-size:14px;line-height:1.7">'+
+      '<b>Оплата переводом:</b><br>'+(venue.transfer_account
+        ?'Переведите <b>'+fmt(done.total||last.total)+'</b> '+(venue.transfer_bank?'в приложении <b>'+venue.transfer_bank+'</b> ':'')+'на номер <b>'+venue.transfer_account+'</b><br>'
+        :'Сумма к переводу: <b>'+fmt(done.total||last.total)+'</b><br><span style="color:#b45309">Заведение ещё не указало номер для переводов — уточните его у официанта.</span><br>')+
+      'В комментарии укажите: <b>Заказ №'+done.no+'</b><br>'+
+      ((venue.transfer_link&&/^https?:\/\//.test(venue.transfer_link))?'<a href="'+venue.transfer_link+'" target="_blank" rel="noopener" style="display:block;text-align:center;background:#16a34a;color:#fff;border-radius:10px;padding:12px;margin:10px 0 0;font-weight:700;text-decoration:none">Перейти к оплате'+(venue.transfer_bank?' в '+venue.transfer_bank:'')+'</a>':'')+
+      '<span style="color:var(--sub);font-size:12px">После перевода нажмите кнопку ниже и прикрепите скриншот чека — кухня сверит и подтвердит оплату.</span>'+
+      '<div style="margin-top:10px"><button class="again" id="proofBtn" style="background:#2563eb">Я оплатил — отправить чек</button>'+
+      '<input type="file" id="proofInp" accept="image/*" style="display:none">'+
+      '<div id="proofMsg" style="font-size:12px;color:var(--sub);margin-top:6px"></div></div></div>':''))+
+    (st==="new"?'<button class="again cxl" id="cancelBtn">Отменить заказ</button>':'')+
+    '<button class="again" id="again">Новый заказ</button></div></div>';
+    document.getElementById("again").onclick=()=>{done=null;cart={};render();};
+    const cb=document.getElementById("cancelBtn");
+    if(cb)cb.onclick=async()=>{
+      if(!confirm("Отменить заказ №"+done.no+"?"))return;
+      try{
+        const r=await sbRpc("cancel_order",{p_id:done.id});
+        if(r&&r.ok){myOrders=myOrders.filter(m=>m.id!==done.id);saveOrders();done.st="cancelled";render();}
+        else alert("Заказ уже принят на кухне — отменить нельзя. Подойдите к кассе.");
+      }
+      catch(e){alert("Ошибка: "+e.message);}
+    };
+    const pb=document.getElementById("proofBtn"),pi=document.getElementById("proofInp");
+    if(pb&&pi){
+      pb.onclick=()=>pi.click();
+      pi.onchange=async()=>{
+        const f=pi.files[0];if(!f)return;
+        pb.disabled=true;pb.textContent="Отправляем…";
+        try{
+          const path=done.id+".jpg";
+          const r=await fetch(SUPABASE_URL+"/storage/v1/object/proofs/"+path+"?upsert=true",{method:"POST",headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":f.type||"image/jpeg"},body:f});
+          if(!r.ok)throw new Error(await r.text());
+          await sbRpc("attach_pay_proof",{p_id:done.id,p_path:path});
+          pb.textContent="✓ Чек отправлен";
+          document.getElementById("proofMsg").textContent="Кухня сверит перевод по чеку и подтвердит оплату.";
+        }catch(e){alert("Ошибка отправки: "+e.message);pb.disabled=false;pb.textContent="Я оплатил — отправить чек";}
+      };
+    }
+    return;
+  }
+  fb.style.display=count?"block":"none";
+  if(count)fb.textContent="Сделать заказ · "+count+" поз. · "+fmt(total);
+  let html=myOrders.length?'<div class="lastorder"><b>Ваши заказы:</b><br>'+myOrders.map(mo=>'№'+mo.no+' · '+fmt(mo.total)+' · <b style="color:'+(mo.st==="ready"?"#16a34a":mo.st==="cooking"?"#b45309":"inherit")+'">'+ordLabel(mo)+'</b>').join("<br>")+'<span>Статус обновляется сам. Выданный заказ исчезает через час.</span></div>':'';
+  html+='<input id="q" placeholder="Найти блюдо…">'+
+  '<div class="tabs" id="tabs"></div><div class="grid" id="grid"></div>'+
+  '<div class="cart" id="cartAnchor"><div class="ct">Заказ'+(tableNo?' · стол '+tableNo:'')+(count?' · '+count+' поз.':'')+'</div>'+
+  (entries.length?entries.map(([id,q])=>'<div class="ci"><div class="cn">'+itemsById[id].name+'</div><div class="step"><button data-a="-" data-id="'+id+'">−</button><div class="qn">'+q+'</div><button data-a="+" data-id="'+id+'">+</button></div><div class="cp">'+fmt(itemsById[id].price*q)+'</div><button class="del" data-a="x" data-id="'+id+'">✕</button></div>').join("")
+  +'<div class="foot"><div class="tt"><small>итого</small>'+fmt(total)+'</div>'+
+  '<button class="pay cash" id="payCash">Заказать · наличные</button>'+
+  ((venue.pay_provider&&venue.pay_provider!=="cashier")?'<button class="pay online" id="payOnline">'+(venue.pay_provider==="transfer"?"Оплатить переводом":"Оплатить онлайн")+'</button>':'')+
+  '</div>'
+  :'<div class="empty">Корзина пуста — добавьте что-нибудь из меню.</div>')+'</div>';
+  app.innerHTML=html;
+  const tabs=[["Всё"]].concat(cats.map(c=>[c.name]));
+  document.getElementById("tabs").innerHTML=tabs.map(t=>'<button class="tab'+(cur===t[0]?' on':'')+'" data-t="'+t[0]+'">'+t[0]+'</button>').join("");
+  document.querySelectorAll("#tabs .tab").forEach(b=>b.onclick=()=>{cur=b.dataset.t;render();});
+  drawGrid("");document.getElementById("q").oninput=e=>drawGrid(e.target.value.trim().toLowerCase());
+  app.querySelectorAll("button[data-a]").forEach(b=>b.onclick=()=>{const id=b.dataset.id;
+    if(b.dataset.a==="x")delete cart[id];else{cart[id]=Math.max(0,(cart[id]||0)+(b.dataset.a==="+"?1:-1));if(!cart[id])delete cart[id];}render();});
+  const payCash=document.getElementById("payCash"),payOnline=document.getElementById("payOnline");
+  const submit=async(method,btn)=>{
+    btn.disabled=true;btn.textContent="Отправляем…";
+    try{
+      const res=await sbRpc("create_order",{p_venue_id:venue.id,p_table_name:tableNo||"",p_items:entries.map(([id,q])=>({id,qty:q})),p_pay_method:method});
+      last={no:res.order_no,total:res.total,id:res.id};sessionStorage.setItem("lastOrder",JSON.stringify(last));
+      myOrders.push({id:res.id,no:res.order_no,total:res.total,method,st:"new",ts:Date.now()});saveOrders();
+      cart={};done={no:res.order_no,id:res.id,method,total:res.total};render();
+    }catch(e){alert("Ошибка: "+e.message);btn.disabled=false;btn.textContent=method==="online"?(venue.pay_provider==="transfer"?"Оплатить переводом":"Оплатить онлайн"):"Заказать · наличные";}
+  };
+  if(payCash)payCash.onclick=()=>submit("cash",payCash);
+  if(payOnline)payOnline.onclick=async()=>{
+    const isFinik=venue.pay_provider==="finik"&&venue.finik_enabled;
+    const isObank=venue.pay_provider==="obank"&&venue.obank_enabled;
+    if(!isFinik&&!isObank){submit("online",payOnline);return;}
+    btnGuard(payOnline,true);
+    try{
+      const res=await sbRpc("create_order",{p_venue_id:venue.id,p_table_name:tableNo||"",p_items:entries.map(([id,q])=>({id,qty:q})),p_pay_method:"online"});
+      const fn=isObank?"obank-create":"finik-create";
+      const r=await fetch(SUPABASE_URL+"/functions/v1/"+fn,{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY},body:JSON.stringify({order_id:res.id,back:location.origin+location.pathname+location.search})});
+      const d=await r.json();
+      if(!r.ok||!d.payment_url)throw new Error(d.error||("HTTP "+r.status));
+      last={no:res.order_no,total:res.total,id:res.id};sessionStorage.setItem("lastOrder",JSON.stringify(last));
+      myOrders.push({id:res.id,no:res.order_no,total:res.total,method:"online",st:"new",ts:Date.now()});saveOrders();
+      cart={};location.href=d.payment_url;
+    }catch(e){
+      alert("Не удалось создать платёж: "+e.message+"\n\nОплатите, пожалуйста, на кассе по номеру заказа.");
+      btnGuard(payOnline,false);
+    }
+  };
+}
+function drawGrid(q){
+  const list=[];cats.forEach(c=>{if(cur==="Всё"||cur===c.name)c.items.forEach(i=>{if(!q||i.name.toLowerCase().includes(q))list.push({...i,cat:c.name});});});
+  cats.forEach(c=>c.items.forEach(i=>itemsById[i.id]=i));
+  const grid=document.getElementById("grid");
+  const isList=(venue&&venue.style==="list");
+  grid.className=isList?"grid list":"grid";
+  grid.innerHTML=list.length?list.map(m=>{const n=cart[m.id]||0;
+    const ctrl=n?'<div class="step"><button data-a="-" data-id="'+m.id+'">−</button><div class="qn">'+n+'</div><button data-a="+" data-id="'+m.id+'">+</button></div>':'<button class="add" data-a="+" data-id="'+m.id+'">+</button>';
+    const ph=m.photo?'<img src="'+SUPABASE_URL+'/storage/v1/object/public/dishes/'+m.photo+'" alt="">':'';
+    if(isList)return '<div class="lcard">'+(ph||'<div class="noph">🍽</div>')+'<div class="mid"><div class="nm">'+m.name+'</div><div class="ds">'+(m.description||'')+'</div></div><div class="rgt"><div class="pr">'+fmt(m.price)+'</div>'+ctrl+'</div></div>';
+    return '<div class="card">'+ph+'<div class="nm">'+m.name+'</div><div class="ds">'+m.description+'</div><div class="row"><div class="pr">'+fmt(m.price)+'</div>'+ctrl+'</div></div>';}).join("")
+    :'<div class="empty" style="grid-column:1/-1">Ничего не найдено.</div>';
+  document.querySelectorAll("#grid button").forEach(b=>b.onclick=()=>{const id=b.dataset.id;
+    cart[id]=Math.max(0,(cart[id]||0)+(b.dataset.a==="+"?1:-1));if(!cart[id])delete cart[id];render();});
+}
+load().catch(e=>document.getElementById("app").innerHTML='<div class="off"><b>Ошибка загрузки</b>'+e.message+'</div>');
+</script></body></html>
