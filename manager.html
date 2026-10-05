@@ -71,7 +71,7 @@ function addPwEyes(){
   const w=document.createElement("span");
   w.style.cssText="position:relative;display:block;width:100%";
   inp.parentNode.insertBefore(w,inp);w.appendChild(inp);
-  inp.style.paddingRight="40px";
+  inp.style.boxSizing="border-box";inp.style.width="100%";inp.style.paddingRight="40px";
   const b=document.createElement("button");
   b.type="button";b.textContent="👁";b.title="Показать/скрыть пароль";
   b.style.cssText="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;opacity:.5;padding:2px;line-height:1";
