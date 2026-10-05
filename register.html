@@ -76,4 +76,16 @@ document.getElementById("f").onsubmit=async e=>{
     btn.disabled=false;btn.textContent="Создать моё меню";
   }
 };
+// «Глазик» для полей пароля: нажатие показывает/скрывает введённый пароль
+document.querySelectorAll('input[type=password]').forEach(inp=>{
+  const w=document.createElement("span");
+  w.style.cssText="position:relative;display:block;width:100%";
+  inp.parentNode.insertBefore(w,inp);w.appendChild(inp);
+  inp.style.paddingRight="40px";
+  const b=document.createElement("button");
+  b.type="button";b.textContent="👁";b.title="Показать/скрыть пароль";
+  b.style.cssText="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;opacity:.5;padding:2px;line-height:1";
+  b.onclick=e=>{e.preventDefault();const show=inp.type==="password";inp.type=show?"text":"password";b.style.opacity=show?"1":".5";};
+  w.appendChild(b);
+});
 </script></body></html>

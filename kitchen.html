@@ -33,7 +33,7 @@ input{width:100%;border:1px solid #444;border-radius:10px;padding:10px;font-size
 .rowbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
 </style></head><body>
 <div id="root" class="login"><h1 style="justify-content:center">Экран кухни</h1>
-<input id="l" placeholder="Логин кухни (логин заведения + _k)"><input id="p" type="password" placeholder="Пароль кухни">
+<input id="l" placeholder="Логин кухни (…_k) или управляющего"><input id="p" type="password" placeholder="Пароль">
 <button class="btn" id="loginBtn" style="width:100%" onclick="login()">Войти</button>
 <div id="err" style="color:#ef4444;font-size:13px;margin-top:10px"></div>
 <div style="margin-top:12px"><a href="#" style="font-size:13px;color:#60a5fa" onclick="toggleRec(event)">Забыли пароль кухни?</a></div>
@@ -63,7 +63,7 @@ function login(){
     if(r&&(r.role==="kitchen"||r.role==="manager")&&r.venue_id){
       vid=r.venue_id;sessionStorage.setItem("kn",r.venues.name);sessionStorage.setItem("kp",r.venues.pay_provider||"");sessionStorage.setItem("kslug",r.venues.slug||"");
       tick();setInterval(tick,5000);
-    }else{sbLogout();btn.textContent="Войти";btn.disabled=false;err.textContent="Неверный логин или пароль";alert("Неверный логин или пароль.\\n\\nЛогин кухни — логин заведения + _k (например, daamduu_k). Пароль кухни задаёт управляющий в кабинете: Настройки → «Пароль кухни».");}
+    }else{sbLogout();btn.textContent="Войти";btn.disabled=false;err.textContent="Неверный логин или пароль";alert("Неверный логин или пароль.\n\nМожно войти двумя способами:\n1) логин кухни — логин заведения + _k (например, daamduu_k) + пароль кухни (задаёт управляющий: Настройки → «Пароль кухни»);\n2) логин и пароль управляющего — как в кабинете.");}
   })
   .catch(e=>{btn.textContent="Войти";btn.disabled=false;err.textContent="Ошибка: "+e.message;alert("Ошибка входа:\\n"+e.message);});
 }
@@ -138,7 +138,7 @@ async function tick(){
   const avg=cooked.length?Math.round(cooked.reduce((s,o)=>s+(new Date(o.ready_at)-new Date(o.accepted_at)),0)/cooked.length/60000):null;
   const NAME=sessionStorage.getItem("kn")||"";
   const PROVIDER=sessionStorage.getItem("kp")||"";
-  const unpaid=os.filter(o=>o.payment_status==="pending"&&(o.pay_method==="cash"||!o.pay_method||(o.pay_method==="online"&&PROVIDER!=="finik")));
+  const unpaid=os.filter(o=>o.payment_status==="pending"&&(o.pay_method==="cash"||!o.pay_method||o.pay_proof));
   const paid=os.filter(o=>o.payment_status!=="pending");
   const card=o=>{
     const waitPay=o.payment_status==="pending";
@@ -227,6 +227,22 @@ function printOrder(id){
    '</body></html>');
   w.document.close();
 }
+// «Глазик» для полей пароля: нажатие показывает/скрывает введённый пароль
+function addPwEyes(){
+ document.querySelectorAll('input[type=password]').forEach(inp=>{
+  if(inp.dataset.eyeInit)return;inp.dataset.eyeInit="1";
+  const w=document.createElement("span");
+  w.style.cssText="position:relative;display:block;width:100%";
+  inp.parentNode.insertBefore(w,inp);w.appendChild(inp);
+  inp.style.paddingRight="40px";
+  const b=document.createElement("button");
+  b.type="button";b.textContent="👁";b.title="Показать/скрыть пароль";
+  b.style.cssText="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;opacity:.5;padding:2px;line-height:1";
+  b.onclick=e=>{e.preventDefault();const show=inp.type==="password";inp.type=show?"text":"password";b.style.opacity=show?"1":".5";};
+  w.appendChild(b);
+ });
+}
+addPwEyes();
 if(sessionStorage.getItem("sb_token")){
   sbMe().then(r=>{
     if(r&&(r.role==="kitchen"||r.role==="manager")&&r.venue_id){

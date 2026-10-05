@@ -18,6 +18,9 @@ td{padding:10px 8px;border-bottom:1px solid #e2e2e2;vertical-align:middle}
 input,select,textarea{width:100%;border:1px solid #e2e2e2;border-radius:10px;padding:10px 12px;font-size:15px;margin-bottom:10px;font-family:inherit}
 .note{font-size:13px;color:#777;margin:14px 0;line-height:1.6}
 .headrow{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.tabs{display:flex;gap:8px;margin:14px 0;flex-wrap:wrap}
+.tab{border:1px solid #e2e2e2;border-radius:999px;padding:6px 14px;font-size:14px;background:none;color:#777;cursor:pointer}
+.tab.on{background:#111;color:#fff;border-color:#111}
 .reqs{border:1px solid #f59e0b;background:#fffbeb;border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:14px}
 .ords{font-size:13px;color:#555}
 .mono{font-family:monospace;font-size:13px}
@@ -32,7 +35,7 @@ input,select,textarea{width:100%;border:1px solid #e2e2e2;border-radius:10px;pad
 <div class="note" id="err" style="color:#dc2626"></div></div></div>
 <script src="/config.js"></script>
 <script>
-let ownerRow=null,vq="",vqTimer=null,vf="all",vsort="new";
+let ownerRow=null,vq="",vqTimer=null,vf="all",vsort="new",view="venues";
 const kgOff=6*3600*1000;
 // Время Бишкека (UTC+6) — НЕ зависит от часового пояса устройства просматривающего
 const kgDate=iso=>new Date(new Date(iso).getTime()+kgOff);
@@ -56,7 +59,7 @@ async function draw(){
   const reqs=await sb("renewal_requests?handled=eq.false&select=*,venues(name)&order=created_at.desc");
   const pays=await sb("subscription_payments?select=*,venues(name)&order=created_at.desc&limit=100");
   const leads=await sb("leads?select=*&order=created_at.desc&limit=50");
-  let finik={account:"",apikey:"",privkey:"",env:"beta"},subAmount=5000,broadcast={text:"",at:null},sms={login:"",password:"",sender:""};
+  let finik={account:"",apikey:"",privkey:"",env:"beta"},subAmount=5000,broadcast={text:"",at:null},sms={login:"",password:"",sender:""},obank={sid:"",password:"",test:"1",knock:"",server:""};
   try{
     const fs=await sb("platform_settings?key=eq.finik&select=value");
     if(fs.length)finik=Object.assign(finik,fs[0].value||{});
@@ -66,6 +69,8 @@ async function draw(){
     if(bs.length)broadcast=Object.assign(broadcast,bs[0].value||{});
     const sm=await sb("platform_settings?key=eq.sms&select=value");
     if(sm.length)sms=Object.assign(sms,sm[0].value||{});
+    const ob=await sb("platform_settings?key=eq.obank&select=value");
+    if(ob.length)obank=Object.assign(obank,ob[0].value||{});
   }catch(e){}
 
   let rows="";
@@ -86,11 +91,17 @@ async function draw(){
     +'<option value="new"'+(vsort==="new"?' selected':'')+'>Сначала новые</option>'
     +'<option value="old"'+(vsort==="old"?' selected':'')+'>Сначала старые</option>'
     +'<option value="no"'+(vsort==="no"?' selected':'')+'>По номеру ID</option></select></div>';
+  // Выручка заведений за текущий месяц (для вкладки «Выручка»)
+  const monthStartISO=new Date(Date.parse(kgDay(new Date().toISOString()).slice(0,7)+"-01T00:00:00Z")-6*3600*1000).toISOString();
+  const revMonth={},revToday={},cntToday={};
   for(const v of fvs){
     const st=await sb("staff?venue_id=eq."+v.id+"&role=eq.manager&select=login");
     const creds=st.length?'<span class="mono">'+st[0].login+'</span>':'<span class="note">—</span>';
     const os=await sb("orders?venue_id=eq."+v.id+"&select=total,payment_status&created_at=gte."+kgDayStartISO());
     const rev=os.reduce((s,o)=>s+o.total,0);
+    revToday[v.id]=rev;cntToday[v.id]=os.length;
+    const om=await sb("orders?venue_id=eq."+v.id+"&select=total&created_at=gte."+monthStartISO);
+    revMonth[v.id]=om.reduce((s,o)=>s+o.total,0);
     const chip=v.status==="active"?'<span class="chip ok">Работает</span>':v.status==="blocked"?'<span class="chip danger">Заблокирован</span>':'<span class="chip warn">Льгота</span>';
     const contact=(v.contact_name||v.contact_phone)?'<br><span style="font-size:12px;color:#777">📞 '+(v.contact_phone||'')+(v.contact_name?' · '+v.contact_name:'')+'</span>':'';
     const daysLeft=v.paid_until?Math.round((Date.parse(v.paid_until)-Date.parse(kgDay(new Date().toISOString())))/86400000):null;
@@ -102,7 +113,7 @@ async function draw(){
     '<td>'+creds+'</td>'+
     '<td>'+planCell+'</td>'+
     '<td class="ords">'+os.length+' заказов<br>'+fmt(rev)+'</td><td>'+chip+'</td>'+
-    '<td style="white-space:nowrap">'+(v.status==="blocked"?'<button class="btn p" onclick="confirmPay(\''+v.id+'\',0)">Разблокировать (оплачено)</button>':'<button class="btn p" onclick="confirmPay(\''+v.id+'\',0)">Подтвердить оплату</button> <button class="btn" onclick="blockV(\''+v.id+'\')">Блокировать</button>')+(v.plan==="trial"?' <button class="btn" onclick="extendTrial(\''+v.id+'\')">+7 дней теста</button>':'')+(st.length?' <button class="btn" onclick="resetPw(\''+st[0].login+'\')">Сбросить пароль</button>':'')+'</td></tr>';
+    '<td style="white-space:nowrap">'+(v.status==="blocked"?'<button class="btn p" onclick="confirmPay(\''+v.id+'\',0)">Разблокировать (оплачено)</button>':'<button class="btn p" onclick="confirmPay(\''+v.id+'\',0)">Подтвердить оплату</button> <button class="btn" onclick="blockV(\''+v.id+'\')">Блокировать</button>')+(v.plan==="trial"?' <button class="btn" onclick="extendTrial(\''+v.id+'\')">+7 дней теста</button>':'')+(st.length?' <button class="btn" onclick="resetPw(\''+st[0].login+'\')">Сбросить пароль</button>':'')+' <button class="btn danger" onclick="delVenue(\''+v.id+'\',\''+String(v.name).replace(/'/g,"")+'\')">Удалить</button></td></tr>';
   }
 
   const reqHtml=reqs.length?'<div class="reqs"><b>Запросы на продление «оплатил переводом» ('+reqs.length+')</b><br>'+reqs.map(r=>'«'+r.venues.name+'» · '+kgHM(r.created_at)+' — <button class="btn p" onclick="confirmPay(\''+r.venue_id+'\','+r.id+')">Подтвердить оплату</button>').join("<br>")+'</div>':'';
@@ -112,52 +123,75 @@ async function draw(){
   const paidPays=pays.filter(p=>p.status==="paid");
   const monthSum=paidPays.filter(p=>kgDay(p.paid_at||p.created_at).slice(0,7)===curMonth).reduce((s,p)=>s+p.amount,0);
   const allSum=paidPays.reduce((s,p)=>s+p.amount,0);
-  const payRows=pays.length?pays.map(p=>'<tr><td>'+kgDay(p.created_at)+' '+kgHM(p.created_at)+'</td><td><b>'+(p.venues?p.venues.name:'—')+'</b></td><td>'+fmt(p.amount)+'</td><td>'+(p.method==="finik"?"Finik · онлайн":"Вручную")+'</td><td>'+(p.status==="paid"?'<span class="chip ok">Оплачено</span>':p.status==="pending"?'<span class="chip warn">Ждёт оплаты</span>':'<span class="chip danger">Ошибка</span>')+'</td></tr>').join(""):'<tr><td colspan="5" class="note">Оплат пока нет.</td></tr>';
+  const payRows=pays.length?pays.map(p=>'<tr><td>'+kgDay(p.created_at)+' '+kgHM(p.created_at)+'</td><td><b>'+(p.venues?p.venues.name:'—')+'</b></td><td>'+fmt(p.amount)+'</td><td>'+(p.method==="obank"?"O!Bank · онлайн":p.method==="finik"?"Finik · онлайн":"Вручную")+'</td><td>'+(p.status==="paid"?'<span class="chip ok">Оплачено</span>':p.status==="pending"?'<span class="chip warn">Ждёт оплаты</span>':'<span class="chip danger">Ошибка</span>')+'</td></tr>').join(""):'<tr><td colspan="5" class="note">Оплат пока нет.</td></tr>';
 
   // Заявки с лендинга
   const newLeads=leads.filter(l=>!l.handled);
   const leadRows=leads.length?leads.slice(0,20).map(l=>'<tr style="'+(l.handled?'opacity:.45':'')+'"><td>'+kgDay(l.created_at)+'</td><td><b>'+l.name+'</b><br><span style="font-size:12px;color:#777">'+l.cafe+'</span></td><td>'+l.phone+'</td><td>'+(l.handled?'обработана':'<button class="btn" onclick="leadDone(\''+l.id+'\')">Обработана</button>')+'</td></tr>').join(""):'<tr><td colspan="4" class="note">Заявок пока нет.</td></tr>';
 
-  document.getElementById("root").innerHTML='<div class="headrow"><h1>Кабинет владельца<small>управление всеми заведениями платформы</small></h1>'+
+  // Вкладки: Заведения / Выручка / Настройки — не нужно листать длинную страницу
+  let html='<div class="headrow"><h1>Кабинет владельца<small>управление всеми заведениями платформы</small></h1>'+
   '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="changeOwnerPw()">Сменить пароль</button><button class="btn p" onclick="addVenue()">+ Добавить заведение</button><button class="btn" onclick="logout()">Выйти</button></div></div>'+
-  reqHtml+
-  '<div style="margin:6px 0 12px;display:flex;gap:8px;flex-wrap:wrap"><input id="vq" placeholder="Поиск заведения: название, имя владельца, телефон или № ID" style="flex:1;min-width:280px;padding:10px;border:1px solid #e2e2e2;border-radius:10px" value="'+vq.replace(/"/g,'&quot;')+'" oninput="vq=this.value;clearTimeout(vqTimer);vqTimer=setTimeout(draw,250)">'+(q?'<button class="btn" onclick="vq=\'\';draw()">Сбросить</button>':'')+'</div>'+
-  (q?'<div class="note" style="margin-bottom:8px">Найдено: '+fvs.length+' из '+vs.length+'</div>':'')+
-  filterRow+
-  '<table><tr><th>Заведение</th><th>Логин</th><th>Тариф</th><th>Сегодня</th><th>Статус</th><th>Действия</th></tr>'+rows+'</table>'+
-  '<div class="note">Пароли управляющих показываются один раз при создании заведения. Автоблокировка за неоплату работает по расписанию (функция billing).</div>'+
+  '<div class="tabs">'+
+  '<button class="tab'+(view==="venues"?' on':'')+'" onclick="view=\'venues\';draw()">Заведения ('+vs.length+')</button>'+
+  '<button class="tab'+(view==="revenue"?' on':'')+'" onclick="view=\'revenue\';draw()">Выручка</button>'+
+  '<button class="tab'+(view==="settings"?' on':'')+'" onclick="view=\'settings\';draw()">Настройки</button></div>';
 
-  '<h2>Оплаты подписок (отчётность)</h2>'+
-  '<div class="stats"><div><b>'+fmt(monthSum)+'</b><br><span class="note">поступило в этом месяце</span></div>'+
-  '<div><b>'+fmt(allSum)+'</b><br><span class="note">за всё время</span></div>'+
-  '<div><b>'+paidPays.length+'</b><br><span class="note">оплаченных платежей</span></div></div>'+
-  '<table><tr><th>Дата</th><th>Заведение</th><th>Сумма</th><th>Способ</th><th>Статус</th></tr>'+payRows+'</table>'+
+  if(view==="venues"){
+    html+=reqHtml+
+    '<div style="margin:6px 0 12px;display:flex;gap:8px;flex-wrap:wrap"><input id="vq" placeholder="Поиск заведения: название, имя владельца, телефон или № ID" style="flex:1;min-width:280px;padding:10px;border:1px solid #e2e2e2;border-radius:10px" value="'+vq.replace(/"/g,'&quot;')+'" oninput="vq=this.value;clearTimeout(vqTimer);vqTimer=setTimeout(draw,250)">'+(q?'<button class="btn" onclick="vq=\'\';draw()">Сбросить</button>':'')+'</div>'+
+    (q?'<div class="note" style="margin-bottom:8px">Найдено: '+fvs.length+' из '+vs.length+'</div>':'')+
+    filterRow+
+    '<table><tr><th>Заведение</th><th>Логин</th><th>Тариф</th><th>Сегодня</th><th>Статус</th><th>Действия</th></tr>'+rows+'</table>'+
+    '<div class="note">Пароли управляющих показываются один раз при создании заведения. Автоблокировка за неоплату работает по расписанию (функция billing). «Удалить» — стирает заведение полностью: меню, заказы, столы, доступы.</div>'+
+    '<h2>Заявки с лендинга'+(newLeads.length?' · новых: '+newLeads.length:'')+'</h2>'+
+    '<table><tr><th>Дата</th><th>Контакт</th><th>Телефон</th><th></th></tr>'+leadRows+'</table>';
+  }else if(view==="revenue"){
+    const revRows=vs.map(v=>{
+      const subSum=paidPays.filter(p=>p.venue_id===v.id).reduce((s,p)=>s+p.amount,0);
+      return '<tr><td><b>'+v.name+'</b></td><td>'+(cntToday[v.id]||0)+' заказов · '+fmt(revToday[v.id]||0)+'</td><td>'+fmt(revMonth[v.id]||0)+'</td><td>'+fmt(subSum)+'</td></tr>';
+    }).join("");
+    html+='<h2>Оплаты подписок</h2>'+
+    '<div class="stats"><div><b>'+fmt(monthSum)+'</b><br><span class="note">поступило в этом месяце</span></div>'+
+    '<div><b>'+fmt(allSum)+'</b><br><span class="note">за всё время</span></div>'+
+    '<div><b>'+paidPays.length+'</b><br><span class="note">оплаченных платежей</span></div></div>'+
+    '<table><tr><th>Дата</th><th>Заведение</th><th>Сумма</th><th>Способ</th><th>Статус</th></tr>'+payRows+'</table>'+
+    '<h2>Выручка заведений (заказы гостей)</h2>'+
+    '<table><tr><th>Заведение</th><th>Сегодня</th><th>Этот месяц</th><th>Подписки (за всё время)</th></tr>'+revRows+'</table>';
+  }else{
+    html+='<h2>Сообщение всем заведениям (рассылка в кабинеты)</h2>'+
+    '<div class="note">Текст появится баннером в кабинете каждого заведения (и в новых, и в тестовых). Они увидят его при следующем входе или обновлении страницы и смогут скрыть кнопкой «Понятно».'+(broadcast.text?' <b>Сейчас висит сообщение от '+kgDay(broadcast.at)+'.</b>':' Сейчас сообщений нет.')+'</div>'+
+    '<div class="setrow"><label>Текст сообщения</label><textarea id="bc_text" rows="4" placeholder="Например: Просьба всем заведениям прислать в WhatsApp данные вашей кассы (модель) и банка — подключаем автопечать чеков и онлайн-оплату.">'+(broadcast.text||'').replace(/</g,'&lt;')+'</textarea></div>'+
+    '<button class="btn p" onclick="sendBroadcast()">Отправить всем</button> <button class="btn" onclick="clearBroadcast()">Убрать сообщение</button>'+
 
-  '<h2>Заявки с лендинга'+(newLeads.length?' · новых: '+newLeads.length:'')+'</h2>'+
-  '<table><tr><th>Дата</th><th>Контакт</th><th>Телефон</th><th></th></tr>'+leadRows+'</table>'+
+    '<h2>Настройки O!Bank платформы (приём оплаты подписок — ОСНОВНОЙ, комиссия 0,8%)</h2>'+
+    '<div class="note">Сюда вводятся SID и пароль API ВАШЕГО мерчанта O!Bank — на них заведения оплачивают подписку онлайн (гость платит по QR из любого банковского приложения). Пока заполнены эти поля — оплата подписки идёт через O!Bank; если их стереть, сработает запасной вариант Finik. Пока пустые оба — кнопка онлайн-оплаты у заведений не показывается.</div>'+
+    '<div class="setrow"><label>SID мерчанта</label><input id="po_sid" value="'+(obank.sid||'').replace(/"/g,'&quot;')+'"></div>'+
+    '<div class="setrow"><label>Пароль API</label><input id="po_pwd" type="password" value="'+(obank.password||'').replace(/"/g,'&quot;')+'"></div>'+
+    '<div class="setrow"><label>Режим</label><select id="po_test"><option value="1"'+(obank.test!=="0"?' selected':'')+'>Тестовый (sandbox, без реальных денег)</option><option value="0"'+(obank.test==="0"?' selected':'')+'>Боевой (реальные деньги)</option></select></div>'+
+    '<div class="setrow"><label>Knock-ссылка песочницы (только для тестового режима; действует 24 ч, обновляется нажатием в браузере)</label><input id="po_knock" value="'+(obank.knock||'').replace(/"/g,'&quot;')+'" placeholder="https://...knock..."></div>'+
+    '<button class="btn p" onclick="saveObank()">Сохранить настройки O!Bank</button>'+
 
-  '<h2>Сообщение всем заведениям (рассылка в кабинеты)</h2>'+
-  '<div class="note">Текст появится баннером в кабинете каждого заведения (и в новых, и в тестовых). Они увидят его при следующем входе или обновлении страницы и смогут скрыть кнопкой «Понятно».'+(broadcast.text?' <b>Сейчас висит сообщение от '+kgDay(broadcast.at)+'.</b>':' Сейчас сообщений нет.')+'</div>'+
-  '<div class="setrow"><label>Текст сообщения</label><textarea id="bc_text" rows="4" placeholder="Например: Просьба всем заведениям прислать в WhatsApp данные вашей кассы (модель) и банка — подключаем автопечать чеков и онлайн-оплату.">'+(broadcast.text||'').replace(/</g,'&lt;')+'</textarea></div>'+
-  '<button class="btn p" onclick="sendBroadcast()">Отправить всем</button> <button class="btn" onclick="clearBroadcast()">Убрать сообщение</button>'+
+    '<h2>Настройки Finik платформы (запасной способ, комиссия 2%)</h2>'+
+    '<div class="note">Сюда вводятся ключи ВАШЕГО магазина Finik — на них заведения оплачивают подписку онлайн. Регистрация: finik.kg → бизнес-аккаунт → ключи (тип WEB). Комиссия Finik 2% с платежа. Пока поля пустые — кнопка онлайн-оплаты у заведений не показывается.</div>'+
+    '<div class="setrow"><label>ID счёта Finik</label><input id="pf_acc" value="'+(finik.account||'').replace(/"/g,'&quot;')+'"></div>'+
+    '<div class="setrow"><label>API-ключ Finik (x-api-key)</label><input id="pf_key" value="'+(finik.apikey||'').replace(/"/g,'&quot;')+'"></div>'+
+    '<div class="setrow"><label>Приватный ключ (весь текст из finik_private.pem, включая BEGIN/END)</label><textarea id="pf_priv" rows="5" style="font-size:12px;font-family:monospace">'+(finik.privkey||'')+'</textarea></div>'+
+    '<div class="setrow"><label>Среда</label><select id="pf_env"><option value="beta"'+(finik.env!=="prod"?' selected':'')+'>Бета (тест, без реальных денег)</option><option value="prod"'+(finik.env==="prod"?' selected':'')+'>Рабочая (реальные деньги)</option></select></div>'+
+    '<div class="setrow"><label>Сумма подписки, сом/мес</label><input id="pf_amount" type="number" value="'+subAmount+'"></div>'+
+    '<button class="btn p" onclick="saveFinik()">Сохранить настройки</button>'+
 
-  '<h2>Настройки Finik платформы (приём оплаты подписок)</h2>'+
-  '<div class="note">Сюда вводятся ключи ВАШЕГО магазина Finik — на них заведения оплачивают подписку онлайн. Регистрация: finik.kg → бизнес-аккаунт → ключи (тип WEB). Комиссия Finik 2% с платежа. Пока поля пустые — кнопка онлайн-оплаты у заведений не показывается.</div>'+
-  '<div class="setrow"><label>ID счёта Finik</label><input id="pf_acc" value="'+(finik.account||'').replace(/"/g,'&quot;')+'"></div>'+
-  '<div class="setrow"><label>API-ключ Finik (x-api-key)</label><input id="pf_key" value="'+(finik.apikey||'').replace(/"/g,'&quot;')+'"></div>'+
-  '<div class="setrow"><label>Приватный ключ (весь текст из finik_private.pem, включая BEGIN/END)</label><textarea id="pf_priv" rows="5" style="font-size:12px;font-family:monospace">'+(finik.privkey||'')+'</textarea></div>'+
-  '<div class="setrow"><label>Среда</label><select id="pf_env"><option value="beta"'+(finik.env!=="prod"?' selected':'')+'>Бета (тест, без реальных денег)</option><option value="prod"'+(finik.env==="prod"?' selected':'')+'>Рабочая (реальные деньги)</option></select></div>'+
-  '<div class="setrow"><label>Сумма подписки, сом/мес</label><input id="pf_amount" type="number" value="'+subAmount+'"></div>'+
-  '<button class="btn p" onclick="saveFinik()">Сохранить настройки</button>'+
-
-  '<h2>SMS-шлюз (восстановление пароля заведений по SMS-коду)</h2>'+
-  '<div class="note" style="margin-bottom:8px">Данные личного кабинета SMS-шлюза Nikita.kg (smspro.nikita.kg). Пока поля пустые — восстановление по SMS выключено, заведения сбрасывают пароль через тебя.</div>'+
-  '<div class="setrow"><label>Логин шлюза</label><input id="sm_login" value="'+(sms.login||'').replace(/"/g,'&quot;')+'"></div>'+
-  '<div class="setrow"><label>Пароль шлюза</label><input id="sm_pwd" value="'+(sms.password||'').replace(/"/g,'&quot;')+'"></div>'+
-  '<div class="setrow"><label>Имя отправителя (sender, согласуется с Nikita)</label><input id="sm_sender" value="'+(sms.sender||'').replace(/"/g,'&quot;')+'" placeholder="например: Upservis"></div>'+
-  '<button class="btn p" onclick="saveSms()">Сохранить SMS-настройки</button>';
+    '<h2>SMS-шлюз (восстановление пароля заведений по SMS-коду)</h2>'+
+    '<div class="note" style="margin-bottom:8px">Данные личного кабинета SMS-шлюза Nikita.kg (smspro.nikita.kg). Пока поля пустые — восстановление по SMS выключено, заведения сбрасывают пароль через тебя.</div>'+
+    '<div class="setrow"><label>Логин шлюза</label><input id="sm_login" value="'+(sms.login||'').replace(/"/g,'&quot;')+'"></div>'+
+    '<div class="setrow"><label>Пароль шлюза</label><input id="sm_pwd" type="password" value="'+(sms.password||'').replace(/"/g,'&quot;')+'"></div>'+
+    '<div class="setrow"><label>Имя отправителя (sender, согласуется с Nikita)</label><input id="sm_sender" value="'+(sms.sender||'').replace(/"/g,'&quot;')+'" placeholder="например: Upservis"></div>'+
+    '<button class="btn p" onclick="saveSms()">Сохранить SMS-настройки</button>';
+  }
+  document.getElementById("root").innerHTML=html;
   const vqEl=document.getElementById("vq");
   if(vqEl&&vq){vqEl.focus();vqEl.setSelectionRange(vqEl.value.length,vqEl.value.length);}
+  addPwEyes();
  }catch(e){
   document.getElementById("root").innerHTML='<div class="login"><h1>Ошибка кабинета</h1><div style="color:#dc2626;font-size:13px;margin:12px 0;line-break:anywhere">'+e.message+'</div><button class="btn p" style="width:100%" onclick="logout()">Выйти и войти заново</button></div>';
  }
@@ -195,8 +229,28 @@ async function resetPw(login){
     alert("Пароль для «"+login+"» изменён.\n\nНовый пароль: "+nw+"\nПередайте его заведению — старый больше не работает.");
   }catch(e){alert("Ошибка: "+e.message);}
 }
+async function delVenue(id,name){
+  if(!confirm("УДАЛИТЬ заведение «"+name+"» полностью?\n\nСотрутся: меню, заказы, столы, история оплат, доступы управляющего и кухни. Восстановить будет НЕЛЬЗЯ."))return;
+  const word=prompt("Для подтверждения впишите название заведения точно как указано: «"+name+"»");
+  if(word===null)return;
+  if(word.trim()!==name){alert("Название не совпало — удаление отменено.");return;}
+  try{
+    const r=await fetch(SUPABASE_URL+"/functions/v1/admin-delete-venue",{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,"Authorization":"Bearer "+SB_TOKEN},body:JSON.stringify({venue_id:id})});
+    const d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||("HTTP "+r.status));
+    alert("Заведение «"+name+"» удалено полностью.");
+    draw();
+  }catch(e){alert("Ошибка: "+e.message);}
+}
 function leadDone(id){
   sb("leads?id=eq."+id,{method:"PATCH",body:JSON.stringify({handled:true})}).then(draw).catch(e=>alert("Ошибка: "+e.message));
+}
+function saveObank(){
+  const g=id=>{const e=document.getElementById(id);return e?e.value.trim():"";};
+  const obank={sid:g("po_sid"),password:g("po_pwd"),test:g("po_test")||"1",knock:g("po_knock")};
+  sb("platform_settings?key=eq.obank",{method:"PATCH",body:JSON.stringify({value:obank,updated_at:new Date().toISOString()})})
+   .then(()=>{alert("Настройки O!Bank сохранены."+(obank.sid&&obank.password?" Подписку заведения теперь оплачивают через O!Bank (комиссия 0,8%).":" Поля пустые — сработает запасной способ Finik, если он настроен."));draw();})
+   .catch(e=>alert("Ошибка: "+e.message));
 }
 function saveFinik(){
   const g=id=>{const e=document.getElementById(id);return e?e.value.trim():"";};
@@ -256,6 +310,22 @@ async function addVenue(){
     draw();
   }catch(e){alert("Ошибка: "+e.message);}
 }
+// «Глазик» для полей пароля: нажатие показывает/скрывает введённый пароль
+function addPwEyes(){
+ document.querySelectorAll('input[type=password]').forEach(inp=>{
+  if(inp.dataset.eyeInit)return;inp.dataset.eyeInit="1";
+  const w=document.createElement("span");
+  w.style.cssText="position:relative;display:block;width:100%";
+  inp.parentNode.insertBefore(w,inp);w.appendChild(inp);
+  inp.style.paddingRight="40px";
+  const b=document.createElement("button");
+  b.type="button";b.textContent="👁";b.title="Показать/скрыть пароль";
+  b.style.cssText="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;opacity:.5;padding:2px;line-height:1";
+  b.onclick=e=>{e.preventDefault();const show=inp.type==="password";inp.type=show?"text":"password";b.style.opacity=show?"1":".5";};
+  w.appendChild(b);
+ });
+}
+addPwEyes();
 if(sessionStorage.getItem("sb_token")){
   sbMe().then(r=>{if(r&&r.role==="owner"){ownerRow=r;draw();}else sbLogout();})
    .catch(()=>sbLogout());

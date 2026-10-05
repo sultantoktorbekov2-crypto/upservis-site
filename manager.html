@@ -64,7 +64,23 @@ input:focus,select:focus{outline:1px solid #111}
 </div></div></div>
 <script src="/config.js"></script>
 <script>
-let me=null,view="menu",cats=[],mq="",sub={amount:5000,finik_ready:false};
+// «Глазик» для полей пароля: нажатие показывает/скрывает введённый пароль
+function addPwEyes(){
+ document.querySelectorAll('input[type=password]').forEach(inp=>{
+  if(inp.dataset.eyeInit)return;inp.dataset.eyeInit="1";
+  const w=document.createElement("span");
+  w.style.cssText="position:relative;display:block;width:100%";
+  inp.parentNode.insertBefore(w,inp);w.appendChild(inp);
+  inp.style.paddingRight="40px";
+  const b=document.createElement("button");
+  b.type="button";b.textContent="👁";b.title="Показать/скрыть пароль";
+  b.style.cssText="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;opacity:.5;padding:2px;line-height:1";
+  b.onclick=e=>{e.preventDefault();const show=inp.type==="password";inp.type=show?"text":"password";b.style.opacity=show?"1":".5";};
+  w.appendChild(b);
+ });
+}
+addPwEyes();
+let me=null,view="menu",cats=[],mq="",sub={amount:5000,finik_ready:false,obank_ready:false};
 
 // время Кыргызстана (UTC+6, без перехода на летнее)
 const kgOff=6*3600*1000;
@@ -135,7 +151,7 @@ async function draw(){
   if(v.status==="blocked")html+='<div class="banner" style="background:#fee2e2;border-color:#ef4444;color:#991b1b">Сервис заблокирован за неоплату. Свяжитесь с владельцом платформы.</div>';
   const todayStr=kgDate(new Date().toISOString()).toISOString().slice(0,10);
   const overdue=v.paid_until&&v.paid_until<=todayStr;
-  sub={amount:5000,finik_ready:false};
+  sub={amount:5000,finik_ready:false,obank_ready:false};
   try{sub=await sbRpc("subscription_info")||sub;}catch(e){}
   const justPaid=new URLSearchParams(location.search).get("paid")==="1";
   const isTrial=v.plan==="trial";
@@ -147,9 +163,9 @@ async function draw(){
     :'<b>Подписка:</b> '+(overdue?'<span style="color:#dc2626;font-weight:700">просрочена</span> — оплатите '+fmt(sub.amount)+' (30 дней)':'оплачена до <b>'+v.paid_until+'</b>')+
      (justPaid?'<br><span style="color:#2563eb;font-weight:600">Платёж отправлен — проверяем зачисление…</span>':'')+
      '<br><span class="note">Оплата — '+fmt(sub.amount)+' за 30 дней. Оплатили — и срок продлевается с даты окончания текущего. Можно платить за несколько месяцев вперёд. При онлайн-оплате продление автоматическое, подтверждение владельца не нужно.</span><br>')+
-   (sub.finik_ready?'<button class="btn p" style="margin-top:8px" id="paySubBtn" onclick="paySubscription()">Оплатить '+fmt(sub.amount)+' онлайн</button> ':'')+
-   '<button class="btn" style="margin-top:8px" onclick="requestRenewal()">Оплатил переводом — сообщить владельцу</button>'+
-   (v.venue_no?'<div class="note" style="margin-top:10px">При оплате переводом укажите в комментарии: <b style="font-size:15px">Заведение №'+v.venue_no+'</b> — по нему ваша оплата находится мгновенно.</div>':'')+'</div>';
+   ((sub.obank_ready||sub.finik_ready)?'<button class="btn p" style="margin-top:8px" id="paySubBtn" onclick="paySubscription()">Оплатить '+fmt(sub.amount)+' онлайн</button> ':'')+
+   (sub.obank_ready?'':'<button class="btn" style="margin-top:8px" onclick="requestRenewal()">Оплатил переводом — сообщить владельцу</button>')+
+   (sub.obank_ready?'':(v.venue_no?'<div class="note" style="margin-top:10px">При оплате переводом укажите в комментарии: <b style="font-size:15px">Заведение №'+v.venue_no+'</b> — по нему ваша оплата находится мгновенно.</div>':''))+'</div>';
   html+='<div class="tabs">'+
   '<button class="tab'+(view==="menu"?' on':'')+'" data-v="menu">Меню и цены</button>'+
   '<button class="tab'+(view==="tables"?' on':'')+'" data-v="tables">Столы и QR</button>'+
@@ -168,6 +184,7 @@ async function draw(){
   else if(view==="settings")runSection(drawSettings);
   else if(view==="faq")runSection(drawFaq);
   else runSection(drawOrders);
+  setTimeout(addPwEyes,600); // разделы рендерятся асинхронно — добавляем глазики и их полям
   if(justPaid)pollSub(0);
   if(new URLSearchParams(location.search).get("welcome")==="1"){
     history.replaceState(null,"","/manager.html");
@@ -235,7 +252,7 @@ async function drawTables(){
   const ts=await sb("tables?venue_id=eq."+me.venue_id+"&order=created_at");
   const vk=me.venues.slug||(me.venues.domain||"").split(".").slice(1).join(".");
   $("#body").innerHTML='<div class="note">QR-коды для печати: назовите стол («Терраса 1», «Зал — окно») — код обновится автоматически. Новые столы появляются в конце списка.</div>'+
-  '<div style="border:1px solid #e2e2e2;border-radius:12px;padding:12px 14px;margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>Экран кухни</b><br><span class="note">Откройте эту ссылку на кухонном телефоне/планшете. Вход на кухне отдельный: логин <b>'+me.login+'_k</b>, пароль кухни задаётся в Настройках → «Пароль кухни». Экран сам обновляется и звонит при новом заказе.</span></div><a class="btn p" href="/kitchen.html" target="_blank" style="text-decoration:none">Открыть экран кухни</a></div>'+
+  '<div style="border:1px solid #e2e2e2;border-radius:12px;padding:12px 14px;margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>Экран кухни</b><br><span class="note">Откройте эту ссылку на кухонном телефоне/планшете. Войти можно двумя способами: логин кухни <b>'+me.login+'_k</b> + пароль кухни (задаётся в Настройках → «Пароль кухни») — либо ваш обычный логин и пароль управляющего. Экран сам обновляется и звонит при новом заказе.</span></div><a class="btn p" href="/kitchen.html" target="_blank" style="text-decoration:none">Открыть экран кухни</a> <button class="btn" onclick="copyKitchenLink()">Скопировать ссылку</button></div>'+
   '<div class="addrow" style="margin-top:12px"><input id="nt" placeholder="Название нового стола" style="flex:2"><button class="btn p" onclick="addTable()">Добавить стол</button></div>'+
   ts.map(t=>'<div class="trow"><div class="q" id="q_'+t.id+'"></div><div style="flex:1;min-width:220px"><div class="nm">'+t.name+'</div>'+
   '<input value="'+(t.note||'')+'" id="desc_'+t.id+'" placeholder="Подпись под QR — например: Можете совершить заказ через онлайн меню" style="width:100%;max-width:360px;margin-top:8px;text-align:left">'+
@@ -276,7 +293,7 @@ async function drawOrders(oq){
   oq=(oq===undefined?(document.getElementById("oq")?document.getElementById("oq").value.trim():""):oq);
   let url="orders?venue_id=eq."+me.venue_id+"&order=created_at.desc&limit=30";
   if(oq)url="orders?venue_id=eq."+me.venue_id+"&order=created_at.desc&limit=20&order_no=eq."+encodeURIComponent(oq.replace(/\D/g,"")||"0");
-  const os=await sb(url);
+  const os=(await sb(url)).filter(o=>o.payment_status!=="pending");
   $("#body").innerHTML='<div class="addrow" style="margin-bottom:12px"><input id="oq" placeholder="Поиск заказа по номеру — например: 12" style="flex:2" value="'+oq.replace(/"/g,"&quot;")+'"><button class="btn p" onclick="drawOrders()">Найти</button>'+(oq?'<button class="btn" onclick="drawOrders(\'\')">Сбросить</button>':'')+'</div>'+
   (os.length?os.map(o=>'<div class="ord"><div class="h"><b>№'+(o.order_no||o.id)+' · '+(o.table_name||(o.table_no!=null?'Стол '+o.table_no:'Без стола'))+' · '+kgHM(o.created_at)+' '+kgDay(o.created_at)+'</b><span>'+(o.payment_status==="pending"?'⏳ не оплачен'+(o.pay_proof?' · <a href="'+SUPABASE_URL+'/storage/v1/object/public/proofs/'+o.pay_proof+'" target="_blank" style="color:#2563eb;font-weight:600">🧾 чек перевода</a>':'')+' · <button class="btn" onclick="payOrder('+o.id+')">Оплачено</button> ':"✅ оплачен · ")+fmt(o.total)+'</span></div><div class="note">'+o.items.map(i=>i.qty+"× "+i.name).join(", ")+'</div></div>').join(""):'<div class="note">'+(oq?'Заказ №'+oq+' не найден. Проверьте номер.':'Заказов пока нет.')+'</div>');
   const oi=document.getElementById("oq");
@@ -286,6 +303,13 @@ function setDesc(id,v){
   sb("items?id=eq."+id,{method:"PATCH",body:JSON.stringify({description:v.trim()})})
    .then(()=>drawMenu())
    .catch(e=>alert("Ошибка: "+e.message));
+}
+function copyKitchenLink(){
+  const url=location.origin+"/kitchen.html";
+  const ok=()=>alert("Ссылка на экран кухни скопирована:\n"+url+"\n\nОтправьте её на кухонное устройство (WhatsApp, SMS) и откройте там.");
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(ok).catch(()=>prompt("Скопируйте ссылку вручную:",url));
+  }else prompt("Скопируйте ссылку вручную:",url);
 }
 function requestRenewal(){
   if(!confirm("Отправить запрос на продление владельцу платформы?"))return;
@@ -312,7 +336,7 @@ async function setKitchenPw(){
   if(!cur||!nw){alert("Заполните поля паролей");return;}
   if(nw.length<6){alert("Новый пароль кухни — минимум 6 символов");return;}
   if(nw!==nw2){alert("Новые пароли не совпадают");return;}
-  if(!confirm("Задать новый пароль кухни? На кухонном устройстве нужно будет войти заново: логин "+me.login+"_k и новый пароль."))return;
+  if(!confirm("Задать новый пароль кухни? На кухонном устройстве нужно будет войти заново: логин "+me.login+"_k и новый пароль (либо логин и пароль управляющего)."))return;
   try{
     const r=await fetch(SUPABASE_URL+"/functions/v1/venue-security",{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,"Authorization":"Bearer "+SB_TOKEN},body:JSON.stringify({action:"set_kitchen_password",current_password:cur,new_password:nw})});
     const d=await r.json();
@@ -377,11 +401,10 @@ async function drawStats(){
 function drawSettings(){
   const v=me.venues,pc=v.pay_config||{},kc=v.kkm_config||{};
   const ro=v.status!=="active";
-  const PAY={cashier:"Оплата на кассе (без онлайн)",transfer:"Перевод на счёт/номер (работает сразу)",finik:"Finik — онлайн-оплата (рекомендуется)",mbank:"MBank Business",elsom:"Elsom",obank:"O!Bank / O!Money",pay24:"Pay24",megapay:"MegaPay"};
+  const PAY={cashier:"Оплата на кассе (без онлайн)",transfer:"Перевод на счёт/номер (работает сразу)",obank:"O!Bank / O!Money (рекомендуется)",finik:"Finik — онлайн-оплата",mbank:"MBank Business",pay24:"Pay24",megapay:"MegaPay"};
   const PAYHINT={
     transfer:"Укажите номер телефона или счёта, куда гости будут переводить оплату. В меню гость увидит номер заказа для комментария перевода. Работает без договоров с банком.",
     mbank:"Для автоматической оплаты: в приложении MBank Business откройте раздел «Интеграции/API» и выпустите ключи. Пока ключи не активированы платформой — используйте режим «Перевод на счёт/номер».",
-    elsom:"API-ключи для бизнеса запрашиваются в поддержке Elsom. До подключения используйте режим «Перевод на счёт/номер».",
     obank:"Работает автоматически: гость платит любым банковским приложением по QR (EMV), кухня видит «оплачен» сама. Данные для подключения (SID и пароль API) выдаёт поддержка O!Bank / mWallet — впишите их ниже. Пока тестовый режим включён, деньги не списываются — проверьте оплату на тестовом приложении О!Деньги, затем выключите тестовый режим. Тестовая среда банка закрыта IP-фильтром: вставьте ниже knock-ссылку из письма O!Bank — система будет сама открывать доступ перед каждым платежом. В боевом режиме поле knock-ссылки не нужно.",
     pay24:"Подключение через кабинет Pay24 Business. До подключения — режим «Перевод на счёт/номер».",
     megapay:"Подключение через кабинет MegaPay для бизнеса. До подключения — режим «Перевод на счёт/номер».",
@@ -423,7 +446,7 @@ function drawSettings(){
     '<div class="setrow"><label>Среда</label><select id="pk_finik_env" '+(ro?'disabled':'')+'><option value="beta"'+(pc.finik_env!=="prod"?' selected':'')+'>Бета (тест)</option><option value="prod"'+(pc.finik_env==="prod"?' selected':'')+'>Рабочая</option></select></div>':'')+
   (v.pay_provider==="obank"?
     '<div class="setrow"><label>SID мерчанта (из админки O!Bank)</label><input id="pk_obank_sid" value="'+(pc.obank_sid||'')+'" placeholder="например: 8377315879" '+(ro?'disabled':'')+'></div>'+
-    '<div class="setrow"><label>Пароль API</label><input id="pk_obank_pwd" value="'+(pc.obank_password||'')+'" placeholder="пароль API мерчанта" '+(ro?'disabled':'')+'></div>'+
+    '<div class="setrow"><label>Пароль API</label><input id="pk_obank_pwd" type="password" value="'+(pc.obank_password||'')+'" placeholder="пароль API мерчанта" '+(ro?'disabled':'')+'></div>'+
     '<div class="setrow"><label>Тестовый режим</label><select id="pk_obank_test" '+(ro?'disabled':'')+'><option value="1"'+(String(pc.obank_test??"1")!=="0"?' selected':'')+'>Включён (тест, деньги не списываются)</option><option value="0"'+(String(pc.obank_test??"1")==="0"?' selected':'')+'>Выключён (боевая оплата)</option></select></div>'+
     '<div class="setrow"><label>Knock-ссылка (только для тестового режима)</label><input id="pk_obank_knock" value="'+(pc.obank_knock||'')+'" placeholder="https://sandbox.dengi.kg/knock/..." '+(ro?'disabled':'')+'></div>':'')+
   ((v.pay_provider&&v.pay_provider!=="cashier"&&v.pay_provider!=="transfer"&&v.pay_provider!=="finik"&&v.pay_provider!=="obank")?
@@ -442,7 +465,7 @@ function drawSettings(){
     ((v.kkm_provider==="kkm1c")?
       '<div class="setrow"><label>Регистрационный номер ККМ (rnmNumber)</label><input id="kk_rnm" value="'+(kc.kkm1c_rnm||'')+'" placeholder="например: 0000000517039283" '+(ro?'disabled':'')+'></div>'+
       '<div class="setrow"><label>Логин API</label><input id="kk_login1c" value="'+(kc.kkm1c_login||'')+'" '+(ro?'disabled':'')+'></div>'+
-      '<div class="setrow"><label>Пароль API</label><input id="kk_pwd1c" value="'+(kc.kkm1c_pwd||'')+'" '+(ro?'disabled':'')+'></div>'+
+      '<div class="setrow"><label>Пароль API</label><input id="kk_pwd1c" type="password" value="'+(kc.kkm1c_pwd||'')+'" '+(ro?'disabled':'')+'></div>'+
       '<div class="setrow"><label>configName</label><input id="kk_cfgname" value="'+(kc.kkm1c_configname||'')+'" '+(ro?'disabled':'')+'></div>'+
       '<div class="setrow"><label>configVersion</label><input id="kk_cfgver" value="'+(kc.kkm1c_configversion||'')+'" '+(ro?'disabled':'')+'></div>'+
       '<div class="setrow"><label>workplaceID</label><input id="kk_wpid" value="'+(kc.kkm1c_workplace||'')+'" '+(ro?'disabled':'')+'></div>':'')+
@@ -464,7 +487,7 @@ function drawSettings(){
   '<div class="setrow"><label>Повторите новый пароль</label><input id="pw_new2" type="password"></div>'+
   '<button class="btn" onclick="changePw()">Сменить пароль кабинета</button>'+
   '<h2 style="font-size:16px;margin:22px 0 12px">Пароль кухни (отдельный вход)</h2>'+
-  '<div class="note" style="background:#f5f5f5;border-radius:8px;padding:10px 12px;margin-bottom:10px">У кухни свой логин и свой пароль — пароль кабинета на кухне не работает, и наоборот. Логин кухни: <b>'+me.login+'_k</b>. Здесь вы задаёте или меняете пароль кухни; для подтверждения введите текущий пароль кабинета.</div>'+
+  '<div class="note" style="background:#f5f5f5;border-radius:8px;padding:10px 12px;margin-bottom:10px">У кухни свой логин и свой пароль — пароль кабинета с логином кухни не работает, и наоборот. Логин кухни: <b>'+me.login+'_k</b>. Здесь вы задаёте или меняете пароль кухни; для подтверждения введите текущий пароль кабинета. Кстати: на кухонном экране можно войти и обычным логином/паролем управляющего.</div>'+
   '<div class="setrow"><label>Текущий пароль кабинета (подтверждение)</label><input id="kw_cur" type="password"></div>'+
   '<div class="setrow"><label>Новый пароль кухни (минимум 6 символов)</label><input id="kw_new" type="password"></div>'+
   '<div class="setrow"><label>Повторите новый пароль кухни</label><input id="kw_new2" type="password"></div>'+
@@ -478,7 +501,7 @@ function drawSettings(){
 }
 function drawFaq(){
   const qa=[
-   ["КАК ВСЁ ПОДКЛЮЧИТЬ — универсальная инструкция","<b>1. Экран кухни.</b> Ссылка на экран кухни находится во вкладке «Столы и QR» — блок «Экран кухни» вверху, кнопка «Открыть экран кухни». Откройте её на кухонном телефоне/планшете/компьютере. Вход на кухне отдельный: логин — ваш логин + «_k» (например, daamduu_k), пароль кухни задаётся в Настройках → «Пароль кухни». Устройство можно не выключать — экран сам обновляется каждые 5 секунд и звонит при новом заказе.<br><br><b>2. QR-коды на столы.</b> Вкладка «Столы и QR» → добавьте столы → «Скачать табличку» → распечатайте и разместите на столах. Гость сканирует — попадает сразу в меню своего стола.<br><br><b>3. Приём оплаты.</b> Настройки → «Способ приёма оплаты»: а) «На кассе» — ничего настраивать не нужно; б) «Перевод на счёт/номер» — впишите ваш номер, гость увидит его после заказа, вы подтверждаете кнопкой «Оплачено»; в) «Finik» — полная автоматика, нужна регистрация бизнеса на finik.kg (инструкция в Настройках); г) «O!Bank / O!Money» — полная автоматика по QR из любого банковского приложения, данные для подключения выдаёт поддержка O!Bank (инструкция в Настройках).<br><br><b>4. Принтер бегунков (по желанию).</b> Настройки → «Принтер заказов» — инструкция. Печать — кнопкой «Печать» у заказа на кухне.<br><br><b>5. Кассовый аппарат (фискальные чеки).</b> Настройки → «Кассовый аппарат» → выберите вашу кассу. Работаем со всеми кассами Кыргызстана: Скайнет, Айбек, Umag, eKassa (Телемедиа), YaKassa, О!Касса, Смарт касса (Beeline) — и любыми другими через вариант «Другая касса». Введите адрес сервера и ключ из личного кабинета кассы → «Сохранить» → напишите владельцу платформы: "+OWNER_WHATSAPP+" — активируем формат чека под вашу кассу и сделаем тестовую печать. Касса сама является принтером: номер заказа, стол и состав печатаются прямо в фискальном чеке. До активации чеки пробиваются вручную по номеру заказа — это нормальный рабочий режим.<br><br><b>6. Подписка.</b> Оплата — "+fmt(sub.amount)+" за 30 дней, кнопка «Оплатить» вверху этой страницы. Срок считается от даты окончания текущего: заплатили заранее — дни не сгорают, можно платить за несколько месяцев вперёд. При просрочке меню для гостей выключается автоматически, после оплаты включается само."],
+   ["КАК ВСЁ ПОДКЛЮЧИТЬ — универсальная инструкция","<b>1. Экран кухни.</b> Ссылка на экран кухни находится во вкладке «Столы и QR» — блок «Экран кухни» вверху: кнопка «Открыть экран кухни» или «Скопировать ссылку» (удобно отправить на другое устройство). Откройте её на кухонном телефоне/планшете/компьютере. Войти можно двумя способами: логин кухни — ваш логин + «_k» (например, daamduu_k) + пароль кухни (Настройки → «Пароль кухни»), либо обычный логин и пароль управляющего. Устройство можно не выключать — экран сам обновляется каждые 5 секунд и звонит при новом заказе.<br><br><b>2. QR-коды на столы.</b> Вкладка «Столы и QR» → добавьте столы → «Скачать табличку» → распечатайте и разместите на столах. Гость сканирует — попадает сразу в меню своего стола.<br><br><b>3. Приём оплаты.</b> Настройки → «Способ приёма оплаты»: а) «На кассе» — ничего настраивать не нужно; б) «Перевод на счёт/номер» — впишите ваш номер, гость увидит его после заказа, вы подтверждаете кнопкой «Оплачено»; в) «Finik» — полная автоматика, нужна регистрация бизнеса на finik.kg (инструкция в Настройках); г) «O!Bank / O!Money» — полная автоматика по QR из любого банковского приложения, данные для подключения выдаёт поддержка O!Bank (инструкция в Настройках).<br><br><b>4. Принтер бегунков (по желанию).</b> Настройки → «Принтер заказов» — инструкция. Печать — кнопкой «Печать» у заказа на кухне.<br><br><b>5. Кассовый аппарат (фискальные чеки).</b> Настройки → «Кассовый аппарат» → выберите вашу кассу. Работаем со всеми кассами Кыргызстана: Скайнет, Айбек, Umag, eKassa (Телемедиа), YaKassa, О!Касса, Смарт касса (Beeline) — и любыми другими через вариант «Другая касса». Введите адрес сервера и ключ из личного кабинета кассы → «Сохранить» → напишите владельцу платформы: "+OWNER_WHATSAPP+" — активируем формат чека под вашу кассу и сделаем тестовую печать. Касса сама является принтером: номер заказа, стол и состав печатаются прямо в фискальном чеке. До активации чеки пробиваются вручную по номеру заказа — это нормальный рабочий режим.<br><br><b>6. Подписка.</b> Оплата — "+fmt(sub.amount)+" за 30 дней, кнопка «Оплатить» вверху этой страницы. Срок считается от даты окончания текущего: заплатили заранее — дни не сгорают, можно платить за несколько месяцев вперёд. При просрочке меню для гостей выключается автоматически, после оплаты включается само."],
    ["Блюдо закончилось — как убрать его из меню?","Вкладка «Меню и цены» → напротив позиции кнопка «Скрыть». Гости её перестанут видеть, а завтра нажмите «Показать» — и она вернётся. Удалять не обязательно."],
    ["Как изменить цену или состав блюда?","Вкладка «Меню и цены»: цена правится прямо в поле с цифрой (впишите новую — сохранится само), состав — в поле под названием блюда."],
    ["Как добавить фото блюда?","Вкладка «Меню и цены» → кнопка «Фото» напротив позиции → выберите файл с телефона или компьютера. Фото появится в меню сразу."],
@@ -492,8 +515,35 @@ function drawFaq(){
    ["Нужно ли гостям качать приложение?","Нет. Гость сканирует QR — меню открывается в браузере телефона. Работает на любом смартфоне."],
    ["Куда обращаться, если что-то сломалось?","Напишите владельцу платформы в WhatsApp: "+OWNER_WHATSAPP+" — отвечаем быстро."]
   ];
-  document.getElementById("body").innerHTML='<div class="note" style="margin-bottom:12px">Частые вопросы. Не нашли ответ — напишите нам: <b>'+OWNER_WHATSAPP+'</b></div>'+
-   qa.map(x=>'<details style="border:1px solid #e2e2e2;border-radius:10px;padding:12px 14px;margin-bottom:8px"><summary style="cursor:pointer;font-weight:600;font-size:14px">'+x[0]+'</summary><div class="note" style="margin:8px 0 0">'+x[1]+'</div></details>').join("");
+  document.getElementById("body").innerHTML='<div style="margin-bottom:12px"><input id="faq_q" placeholder="Опишите вопрос своими словами — например: как подключить кассу, гость не может оплатить, добавить стол…" style="width:100%;padding:11px 12px;border:1px solid #e2e2e2;border-radius:10px;font-size:15px" oninput="faqSearch()"></div>'+
+   '<div id="faq_list" class="note" style="margin-bottom:12px">Частые вопросы. Не нашли ответ — напишите нам: <b>'+OWNER_WHATSAPP+'</b></div>'+
+   '<div id="faq_items">'+qa.map((x,i)=>'<details data-i="'+i+'" style="border:1px solid #e2e2e2;border-radius:10px;padding:12px 14px;margin-bottom:8px"><summary style="cursor:pointer;font-weight:600;font-size:14px">'+x[0]+'</summary><div class="note" style="margin:8px 0 0">'+x[1]+'</div></details>').join("")+'</div>';
+  window._faqQa=qa;
+}
+// Умный поиск по «Помощи»: понимает вопрос своими словами, без внешних сервисов
+function faqSearch(){
+  const qa=window._faqQa||[];
+  const q=(document.getElementById("faq_q").value||"").toLowerCase().replace(/[ё]/g,"е").replace(/[^а-яa-z0-9\s]/g," ");
+  const words=q.split(/\s+/).filter(w=>w.length>2);
+  const SYN={касса:["ккм","фискальн","чек","регистратор"],чек:["касса","чеков","принтер"],принтер:["бегунок","печать","чек"],стол:["qr","кюар","столик"],кухн:["повар","экран"],оплат:["платить","деньги","перевод","подписк"],подписк:["тариф","оплата","продлить","абонент"],меню:["блюдо","позици","цена","фото"],заказ:["гость","отмен"],парол:["войти","вход","забыл","логин"],qr:["стол","код","кюар"],звук:["звон","уведомл"]};
+  let expanded=new Set(words);
+  words.forEach(w=>{const st=w.slice(0,Math.max(4,w.length-2));for(const k in SYN){if(k.startsWith(st)||st.startsWith(k.slice(0,4)))SYN[k].forEach(s=>expanded.add(s));}});
+  const items=document.querySelectorAll("#faq_items details");
+  let best=null,bestScore=0;
+  items.forEach(d=>{
+    const i=+d.dataset.i,txt=(qa[i][0]+" "+qa[i][1]).toLowerCase().replace(/[ё]/g,"е");
+    let score=0;
+    expanded.forEach(w=>{const re=new RegExp(w,"g");const m=txt.match(re);if(m)score+=m.length*(w.length>5?2:1);});
+    if(!words.length){d.style.display="";d.open=false;return;}
+    d.style.display=score>0?"":"none";
+    if(score>bestScore){bestScore=score;best=d;}
+  });
+  if(words.length){
+    if(best){best.open=true;best.scrollIntoView({block:"nearest"});}
+    document.getElementById("faq_list").innerHTML=bestScore>0?'Нашёл по вашему запросу (раскрыт самый подходящий ответ). Не то — напишите нам: <b>'+OWNER_WHATSAPP+'</b>':'Ничего не нашлось — попробуйте другими словами или напишите нам: <b>'+OWNER_WHATSAPP+'</b>';
+  }else{
+    document.getElementById("faq_list").innerHTML='Частые вопросы. Не нашли ответ — напишите нам: <b>'+OWNER_WHATSAPP+'</b>';
+  }
 }
 function setPrice(id,v){sb("items?id=eq."+id,{method:"PATCH",body:JSON.stringify({price:+v})}).then(()=>drawMenu()).catch(e=>alert("Ошибка: "+e.message));}
 function tog(id,act){sb("items?id=eq."+id,{method:"PATCH",body:JSON.stringify({active:!act})}).then(()=>drawMenu()).catch(e=>alert("Ошибка: "+e.message));}
