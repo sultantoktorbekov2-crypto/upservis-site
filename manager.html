@@ -7,6 +7,10 @@
 <title>Кабинет заведения</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
+*{box-sizing:border-box}
+.spin{display:inline-block;width:15px;height:15px;border:2px solid #e2e2e2;border-top-color:#111;border-radius:50%;animation:rot .8s linear infinite;vertical-align:-2px;margin-right:8px}
+@keyframes rot{to{transform:rotate(360deg)}}
+.loadingbox{text-align:center;padding:30px;color:#777;font-size:14px}
 body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;max-width:760px;margin:0 auto;padding:20px;color:#111}
 h1{font-size:20px;margin-bottom:4px}h1 small{display:block;font-size:12px;color:#777;font-weight:400}
 .banner{background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:12px 14px;font-size:14px;color:#92400e;margin:12px 0}
@@ -136,6 +140,8 @@ async function recoverVerify(scope){
   btn.disabled=false;btn.textContent="Задать новый пароль";
 }
 async function draw(){
+  const rootEl=document.getElementById("root");
+  rootEl.innerHTML='<div class="loadingbox"><span class="spin"></span>Загрузка…</div>';
   const v=me.venues;
   const ro=v.status!=="active";
   const isDemo=v.slug==="demo";
@@ -175,6 +181,7 @@ async function draw(){
   '<button class="tab'+(view==="settings"?' on':'')+'" data-v="settings">Настройки</button>'+
   '<button class="tab'+(view==="faq"?' on':'')+'" data-v="faq">Помощь</button></div><div id="body"></div>';
   root.innerHTML=html;
+  document.getElementById("body").innerHTML='<div class="loadingbox"><span class="spin"></span>Загрузка раздела…</div>';
   document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{view=b.dataset.v;draw();});
   const runSection=async fn=>{try{await fn();}catch(e){const b=document.getElementById("body");if(b)b.innerHTML='<div class="banner" style="background:#fee2e2;border-color:#ef4444;color:#991b1b"><b>Раздел не загрузился.</b> Обновите страницу (Ctrl+Shift+R). Если не помогло — напишите владельцу платформы: '+OWNER_WHATSAPP+'<br><span class="note">Технически: '+String(e&&e.message||e)+'</span></div>';}};
   if(view==="menu")runSection(drawMenu);
@@ -410,8 +417,9 @@ function drawSettings(){
     megapay:"Подключение через кабинет MegaPay для бизнеса. До подключения — режим «Перевод на счёт/номер».",
     finik:"Работает автоматически: гость платит любым банковским приложением, кухня видит «оплачен» сама. Шаги: 1) зарегистрируйтесь на finik.kg (бизнес), 2) сгенерируйте ключи и отправьте публичный в Finik, 3) создайте API-ключ в кабинете Finik, 4) вставьте три значения ниже. Подробно: finik.kg/documentation",
     cashier:"Гость оплачивает на кассе, сотрудник подтверждает кнопкой «Оплачено» на кухне."};
-  const KKM={none:"Касса не подключена",kkm1c:"ККМ Онлайн (1С, kkm.kg)",skynet:"Скайнет (Skynet ККМ)",aibek:"Айбек (aiBek)",umag:"Umag (Умаг)",ekassa:"eKassa (Телемедиа Групп)",yakassa:"YaKassa",okassa:"О!Касса (О!Нур Телеком)",smartkassa:"Смарт касса (Beeline)",other:"Другая касса (R-Keeper, 1С и т.п.)"};
+  const KKM={none:"Касса не подключена",goodoo:"Гууду (Goodoo, lk.goodoo.kg)",kkm1c:"ККМ Онлайн (1С, kkm.kg)",skynet:"Скайнет (Skynet ККМ)",aibek:"Айбек (aiBek)",umag:"Umag (Умаг)",ekassa:"eKassa (Телемедиа Групп)",yakassa:"YaKassa",okassa:"О!Касса (О!Нур Телеком)",smartkassa:"Смарт касса (Beeline)",other:"Другая касса (R-Keeper, 1С и т.п.)"};
   const KKMHINT={
+    goodoo:"Облачный фискальный накопитель «Гууду» (Goodoo). Чеки пробиваются автоматически при подтверждении оплаты заказа, в любое время суток (смена открывается сама). Данные для подключения выдаёт поддержка Гууду: clientId, terminalId и регистрационный номер ККМ (registrationNumber) — впишите их ниже. Кухонный бегунок эта касса не печатает — пользуйтесь кнопкой «Печать» на экране кухни.",
     kkm1c:"Облачная касса «1С:ККМ Онлайн» (в КР — kkm.kg). Чеки пробиваются автоматически при подтверждении оплаты заказа. Данные для подключения выдаёт поддержка kkm.kg: адрес сервиса (BaseURL), регистрационный номер ККМ (rnmNumber), логин и пароль API, а также три параметра из личного кабинета: configName, configVersion, workplaceID. Кухонный бегунок эта касса не печатает — пользуйтесь кнопкой «Печать» на экране кухни.",
     skynet:"Введите адрес сервера кассы (виден в личном кабинете Скайнет → Интеграции) и API-ключ. После активации платформой чеки с номером заказа будут печататься автоматически.",
     aibek:"Введите адрес сервера и ключ API из кабинета кассы Айбек (Настройки → API).",
@@ -456,8 +464,13 @@ function drawSettings(){
   '<div class="setrow"><label>Провайдер кассы</label>'+sel("sv_kkm",KKM,v.kkm_provider||"none",ro)+'</div>'+
   '<div class="note" style="background:#f5f5f5;border-radius:8px;padding:10px 12px;margin-bottom:14px">'+(KKMHINT[v.kkm_provider]||KKMHINT.none)+'</div>'+
   ((v.kkm_provider&&v.kkm_provider!=="none")?
+    ((v.kkm_provider!=="goodoo")?
     '<div class="setrow"><label>Адрес сервера кассы (если есть)</label><input id="kk_srv" value="'+(kc.server||'')+'" placeholder="например http://192.168.1.50:8080" '+(ro?'disabled':'')+'></div>'+
-    '<div class="setrow"><label>API-ключ кассы (если есть)</label><input id="kk_key" value="'+(kc.api_key||'')+'" '+(ro?'disabled':'')+'></div>'+
+    '<div class="setrow"><label>API-ключ кассы (если есть)</label><input id="kk_key" value="'+(kc.api_key||'')+'" '+(ro?'disabled':'')+'></div>':'')+
+    ((v.kkm_provider==="goodoo")?
+      '<div class="setrow"><label>clientId (выдаёт Гууду)</label><input id="kk_gd_client" value="'+(kc.goodoo_client||'')+'" placeholder="например: 112197" '+(ro?'disabled':'')+'></div>'+
+      '<div class="setrow"><label>terminalId (выдаёт Гууду)</label><input id="kk_gd_term" value="'+(kc.goodoo_terminal||'')+'" placeholder="например: 24532" '+(ro?'disabled':'')+'></div>'+
+      '<div class="setrow"><label>Регистрационный номер ККМ (registrationNumber)</label><input id="kk_gd_reg" value="'+(kc.goodoo_regnum||'')+'" placeholder="например: 0000000000024532" '+(ro?'disabled':'')+'></div>':'')+
     ((v.kkm_provider!=="kkm1c")?
     '<div class="setrow"><label>Где печатать бегунок заказа для кухни</label><select id="kk_slip" '+(ro?'disabled':'')+'>'+
       '<option value="cashier"'+((kc.slip!=="printer")?' selected':'')+'>На кассе, вместе с чеком (кухня рядом с кассой)</option>'+
@@ -656,6 +669,9 @@ function saveSettings(){
     if(g("kk_cfgname")!==null)body.kkm_config.kkm1c_configname=g("kk_cfgname");
     if(g("kk_cfgver")!==null)body.kkm_config.kkm1c_configversion=g("kk_cfgver");
     if(g("kk_wpid")!==null)body.kkm_config.kkm1c_workplace=g("kk_wpid");
+    if(g("kk_gd_client")!==null)body.kkm_config.goodoo_client=g("kk_gd_client").trim();
+    if(g("kk_gd_term")!==null)body.kkm_config.goodoo_terminal=g("kk_gd_term").trim();
+    if(g("kk_gd_reg")!==null)body.kkm_config.goodoo_regnum=g("kk_gd_reg").trim();
   }
   sb("venues?id=eq."+me.venue_id,{method:"PATCH",body:JSON.stringify(body)})
    .then(()=>{me.venues=Object.assign(me.venues,body);alert("Настройки сохранены.");draw();})
